@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -34,6 +35,16 @@ const TIME_CHIPS = [
   { label: 'Under 60 min', value: 60 },
 ];
 
+const RECENTS_KEY = 'dishaspora.recentSearches';
+const MAX_RECENTS = 6;
+const POPULAR_SEARCHES = [
+  'Jollof rice',
+  'Quick breakfast under 20 min',
+  'High-protein Nigerian meals',
+  'Vegetarian soups',
+  'Under 400 kcal dinners',
+];
+
 export default function Search() {
   const insets = useSafeAreaInsets();
   const [input, setInput] = useState('');
@@ -41,6 +52,46 @@ export default function Search() {
   const [category, setCategory] = useState<RecipeCategory | null>(null);
   const [maxCalories, setMaxCalories] = useState<number | null>(null);
   const [maxMinutes, setMaxMinutes] = useState<number | null>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+
+  // Load persisted recent searches once.
+  useEffect(() => {
+    AsyncStorage.getItem(RECENTS_KEY)
+      .then((raw) => {
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setRecents(parsed.filter((x) => typeof x === 'string'));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const pushRecent = useCallback((q: string) => {
+    const clean = q.trim();
+    if (clean.length < 2) return;
+    setRecents((prev) => {
+      const next = [clean, ...prev.filter((r) => r.toLowerCase() !== clean.toLowerCase())].slice(
+        0,
+        MAX_RECENTS
+      );
+      AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const clearRecents = useCallback(() => {
+    setRecents([]);
+    AsyncStorage.removeItem(RECENTS_KEY).catch(() => {});
+  }, []);
+
+  // Debounced live search: after a short pause, run the query without needing Enter.
+  useEffect(() => {
+    const clean = input.trim();
+    if (clean.length < 3) return;
+    if (clean === smartQuery) return;
+    const t = setTimeout(() => setSmartQuery(clean), 500);
+    return () => clearTimeout(t);
+  }, [input, smartQuery]);
 
   // Smart natural-language search when a query is submitted
   const smart = useQuery({
@@ -79,12 +130,25 @@ export default function Search() {
     return chips;
   }, [smart.data, smartMode]);
 
-  const submit = () => setSmartQuery(input.trim());
+  const submit = () => {
+    const clean = input.trim();
+    if (!clean) return;
+    setSmartQuery(clean);
+    pushRecent(clean);
+  };
+
+  const runSuggestion = (q: string) => {
+    setInput(q);
+    setSmartQuery(q);
+    pushRecent(q);
+  };
 
   const clearSmart = () => {
     setSmartQuery('');
     setInput('');
   };
+
+  const showSuggestions = !smartMode && input.trim().length === 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 10 }}>
@@ -109,6 +173,32 @@ export default function Search() {
         }
         keyboardShouldPersistTaps="handled"
       >
+        {showSuggestions ? (
+          <View style={styles.suggestWrap}>
+            {recents.length > 0 ? (
+              <View style={{ marginBottom: 16 }}>
+                <View style={styles.suggestHeader}>
+                  <Text style={styles.suggestTitle}>Recent searches</Text>
+                  <Text style={styles.clearLink} onPress={clearRecents}>
+                    Clear
+                  </Text>
+                </View>
+                <View style={styles.suggestChips}>
+                  {recents.map((r) => (
+                    <ChoiceChip key={r} label={r} onPress={() => runSuggestion(r)} />
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            <Text style={styles.suggestTitle}>Popular searches</Text>
+            <View style={styles.suggestChips}>
+              {POPULAR_SEARCHES.map((s) => (
+                <ChoiceChip key={s} label={s} onPress={() => runSuggestion(s)} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {smartMode ? (
           <View style={styles.chipsRow}>
             {parsedChips.map((chip) => (
@@ -162,6 +252,13 @@ export default function Search() {
         <View style={styles.results}>
           {loading ? (
             <SkeletonGrid count={6} />
+          ) : (smartMode ? smart.isError : browse.isError) ? (
+            <EmptyState
+              image={2}
+              message="Search is unavailable right now. Check your connection and try again."
+              actionLabel="Retry"
+              onAction={() => (smartMode ? smart.refetch() : browse.refetch())}
+            />
           ) : recipes.length === 0 ? (
             <EmptyState
               image={2}
@@ -207,6 +304,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chipsRowScroll: { paddingHorizontal: 20, gap: 8, marginBottom: 10, paddingBottom: 2 },
+  suggestWrap: { paddingHorizontal: 20, marginBottom: 8 },
+  suggestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  suggestTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, marginBottom: 10 },
+  clearLink: { fontSize: 13, fontWeight: '600', color: colors.brandDark },
+  suggestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   results: { paddingHorizontal: 20, paddingTop: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   gridCell: { width: '47%', flexGrow: 1 },

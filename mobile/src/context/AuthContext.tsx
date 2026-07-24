@@ -7,7 +7,8 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { api, setToken } from '../api';
+import { useQueryClient } from '@tanstack/react-query';
+import { api, setToken, setUnauthorizedHandler } from '../api';
 import type { AuthResponse, Country, User } from '../types';
 
 const TOKEN_KEY = 'dishaspora.token';
@@ -35,6 +36,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [onboarded, setOnboarded] = useState(false);
@@ -50,9 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ]);
         setOnboarded(storedOnboarded === '1');
         if (storedToken && storedUser) {
+          let parsedUser: User | null = null;
+          try {
+            parsedUser = JSON.parse(storedUser);
+          } catch {
+            // Corrupt stored user — drop the session and start logged-out.
+            await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+          }
+          if (!parsedUser) return;
           setToken(storedToken);
           setTokenState(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
           // refresh user in background (token may be stale)
           api
             .get<User>('/users/me')
@@ -112,8 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setTokenState(null);
     setUser(null);
+    // Drop every cached query so the next account starts clean (no data leak).
+    queryClient.clear();
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
-  }, []);
+  }, [queryClient]);
+
+  // Register a global session-expiry handler: any authenticated request that
+  // returns 401 (token expired/revoked, account deleted) logs the user out. The
+  // launch gate then redirects to sign-in on the next render.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      logout();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [logout]);
 
   const refreshUser = useCallback(async () => {
     try {

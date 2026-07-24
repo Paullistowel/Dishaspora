@@ -113,6 +113,8 @@ export const demoUser: User = {
   premium: true,
   premiumUntil: '2026-12-31T00:00:00Z',
   vendorId: null,
+  emailVerified: true,
+  pendingEmail: null,
 };
 
 export const demoVendors: Vendor[] = [

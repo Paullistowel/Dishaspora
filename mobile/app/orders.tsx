@@ -10,15 +10,16 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '@/api';
+import { api, ApiError } from '@/api';
 import EmptyState from '@/components/EmptyState';
 import ScreenHeader from '@/components/ScreenHeader';
 import SegmentChips from '@/components/SegmentChips';
 import { Skeleton } from '@/components/Skeleton';
 import { IMG } from '@/config';
+import { useToast } from '@/context/ToastContext';
 import { formatMoney } from '@/money';
 import { colors, shadow } from '@/theme';
 import type { Order, OrderStatus } from '@/types';
@@ -38,8 +39,9 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-function dayKey(iso: string) {
-  return iso.slice(0, 10);
+function dayKey(iso?: string | null) {
+  // Fall back to today for any order missing a timestamp so grouping never crashes.
+  return (iso ?? new Date().toISOString()).slice(0, 10);
 }
 
 function prettyDay(key: string) {
@@ -51,8 +53,17 @@ function prettyDay(key: string) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({
+  order,
+  onConfirm,
+  confirming,
+}: {
+  order: Order;
+  onConfirm: (order: Order) => void;
+  confirming: boolean;
+}) {
   const sc = STATUS_COLORS[order.status];
+  const pending = order.status === 'PENDING_PAYMENT';
   return (
     <View style={styles.orderCard}>
       <View style={styles.orderTop}>
@@ -80,6 +91,20 @@ function OrderCard({ order }: { order: Order }) {
         </View>
         <Text style={styles.orderTotal}>{formatMoney(order.totalMinor, order.currency)}</Text>
       </View>
+      {pending ? (
+        <TouchableOpacity
+          style={styles.confirmBtn}
+          onPress={() => onConfirm(order)}
+          disabled={confirming}
+          accessibilityRole="button"
+          accessibilityLabel={`Confirm payment for order ${order.reference}`}
+        >
+          <Ionicons name="refresh" size={14} color={colors.accentDark} />
+          <Text style={styles.confirmText}>
+            {confirming ? 'Checking…' : "Already paid? Confirm payment"}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -87,6 +112,8 @@ function OrderCard({ order }: { order: Order }) {
 export default function Orders() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [segment, setSegment] = useState('List');
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -95,6 +122,29 @@ export default function Orders() {
     queryKey: ['orders'],
     queryFn: () => api.get<Order[]>('/orders'),
   });
+
+  // Re-verify a pending order in case the charge went through but the app never
+  // saw the confirmation (network blip, app closed mid-payment). Never charges —
+  // it only syncs status with Paystack via the backend.
+  const confirmPayment = useMutation({
+    mutationFn: (order: Order) =>
+      api.post<Order>(`/orders/${order.id}/verify`, { reference: order.reference }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      if (updated.status === 'PENDING_PAYMENT') {
+        toast.info('No completed payment found for this order yet.');
+      } else {
+        toast.success('Payment confirmed — your order is on its way.');
+      }
+    },
+    onError: (e) =>
+      toast.error(
+        e instanceof ApiError
+          ? e.message
+          : "We couldn't confirm this payment. If you paid, try again shortly."
+      ),
+  });
+  const confirmingId = confirmPayment.isPending ? confirmPayment.variables?.id : undefined;
 
   const grouped = useMemo(() => {
     const map = new Map<string, Order[]>();
@@ -157,6 +207,13 @@ export default function Orders() {
             <Skeleton height={110} radius={20} />
             <Skeleton height={110} radius={20} />
           </View>
+        ) : orders.isError ? (
+          <EmptyState
+            image={2}
+            message="We couldn't load your orders. Check your connection and try again."
+            actionLabel="Retry"
+            onAction={() => orders.refetch()}
+          />
         ) : segment === 'List' ? (
           grouped.length === 0 ? (
             <EmptyState
@@ -171,7 +228,12 @@ export default function Orders() {
                 <Text style={styles.dayHeader}>{prettyDay(key)}</Text>
                 <View style={{ gap: 12, marginBottom: 20 }}>
                   {dayOrders.map((order) => (
-                    <OrderCard key={order.id} order={order} />
+                    <OrderCard
+                      key={order.id}
+                      order={order}
+                      onConfirm={confirmPayment.mutate}
+                      confirming={confirmingId === order.id}
+                    />
                   ))}
                 </View>
               </Animated.View>
@@ -243,7 +305,14 @@ export default function Orders() {
               ) : selectedOrders.length === 0 ? (
                 <EmptyState image={2} message="No orders on this day." />
               ) : (
-                selectedOrders.map((order) => <OrderCard key={order.id} order={order} />)
+                selectedOrders.map((order) => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    onConfirm={confirmPayment.mutate}
+                    confirming={confirmingId === order.id}
+                  />
+                ))
               )}
             </View>
           </>
@@ -278,6 +347,17 @@ const styles = StyleSheet.create({
   itemsLabel: { fontSize: 12.5, color: colors.inkSoft, marginLeft: 18 },
   orderRef: { fontSize: 11, color: colors.inkFaint, marginLeft: 18, marginTop: 2 },
   orderTotal: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  confirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.accentLight,
+  },
+  confirmText: { fontSize: 12.5, fontWeight: '700', color: colors.accentDark },
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',

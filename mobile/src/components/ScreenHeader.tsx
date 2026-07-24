@@ -8,14 +8,21 @@ import CircleButton from './CircleButton';
 export default function ScreenHeader({
   title,
   right,
+  onBack,
 }: {
   title: string;
   right?: React.ReactNode;
+  /** Override the back action (e.g. to confirm before leaving a payment). */
+  onBack?: () => void;
 }) {
   const router = useRouter();
   return (
     <View style={styles.row}>
-      <CircleButton icon="chevron-back" onPress={() => router.back()} />
+      <CircleButton
+        icon="chevron-back"
+        onPress={onBack ?? (() => router.back())}
+        accessibilityLabel="Go back"
+      />
       <Text style={styles.title} numberOfLines={1}>
         {title}
       </Text>

@@ -11,6 +11,7 @@ export default function CircleButton({
   bg = '#FFFFFF',
   size = 42,
   style,
+  accessibilityLabel,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress?: () => void;
@@ -18,11 +19,14 @@ export default function CircleButton({
   bg?: string;
   size?: number;
   style?: ViewStyle;
+  accessibilityLabel?: string;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? icon.replace(/-outline$/, '').replace(/-/g, ' ')}
       style={[
         styles.btn,
         { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },

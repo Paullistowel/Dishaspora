@@ -1,5 +1,13 @@
 import React, { useRef } from 'react';
-import { GestureResponderEvent, Pressable, StyleProp, View, ViewStyle } from 'react-native';
+import {
+  AccessibilityRole,
+  AccessibilityState,
+  GestureResponderEvent,
+  Pressable,
+  StyleProp,
+  View,
+  ViewStyle,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useAnimatedStyle,
@@ -23,6 +31,10 @@ export default function PressableScale({
   scaleTo = 0.96,
   haptic = false,
   disabled,
+  accessibilityRole = 'button',
+  accessibilityLabel,
+  accessibilityHint,
+  accessibilityState,
 }: {
   children: React.ReactNode;
   onPress?: () => void;
@@ -32,6 +44,10 @@ export default function PressableScale({
   scaleTo?: number;
   haptic?: boolean;
   disabled?: boolean;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  accessibilityState?: AccessibilityState;
 }) {
   const scale = useSharedValue(1);
   const rotateX = useSharedValue(0);
@@ -68,6 +84,10 @@ export default function PressableScale({
   return (
     <Pressable
       disabled={disabled}
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled, ...accessibilityState }}
       onPressIn={pressIn}
       onPressOut={pressOut}
       onLongPress={onLongPress}

@@ -54,7 +54,12 @@ function Row({
   danger?: boolean;
 }) {
   return (
-    <PressableScale onPress={onPress} scaleTo={0.98}>
+    <PressableScale
+      onPress={onPress}
+      scaleTo={0.98}
+      accessibilityRole="button"
+      accessibilityLabel={value ? `${label}, ${value}` : label}
+    >
       <View style={styles.row}>
         <View style={[styles.rowIcon, danger && { backgroundColor: '#FDECEC' }]}>
           <Ionicons name={icon} size={17} color={danger ? colors.danger : colors.brandDark} />
@@ -231,6 +236,11 @@ export default function Profile() {
               label="Country"
               value={user?.country === 'NG' ? 'Nigeria' : 'Ghana'}
               onPress={() => router.push('/edit-profile')}
+            />
+            <Row
+              icon="shield-checkmark-outline"
+              label="Settings & security"
+              onPress={() => router.push('/settings')}
             />
             <Row icon="log-out-outline" label="Log out" danger onPress={confirmLogout} />
           </Animated.View>

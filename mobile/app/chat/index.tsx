@@ -56,6 +56,13 @@ export default function ChatThreads() {
             <Skeleton height={72} radius={20} />
             <Skeleton height={72} radius={20} />
           </>
+        ) : threads.isError ? (
+          <EmptyState
+            image={3}
+            message="We couldn't load your messages. Check your connection and try again."
+            actionLabel="Retry"
+            onAction={() => threads.refetch()}
+          />
         ) : (threads.data ?? []).length === 0 ? (
           <EmptyState
             image={3}

@@ -34,14 +34,22 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!name.trim() || !email.trim() || password.length < 6) {
-      Alert.alert('Missing details', 'Fill in your name, email and a password of at least 6 characters.');
+    if (!name.trim() || !email.trim()) {
+      Alert.alert('Missing details', 'Fill in your name and email.');
+      return;
+    }
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
+      Alert.alert(
+        'Weak password',
+        'Use at least 8 characters with an uppercase letter, a lowercase letter and a number.'
+      );
       return;
     }
     setBusy(true);
     try {
       await register(name.trim(), email.trim(), password, country);
-      router.replace('/(tabs)');
+      // New users go through onboarding, then into the app.
+      router.replace('/onboarding');
     } catch (e) {
       Alert.alert(
         'Registration failed',
@@ -89,7 +97,7 @@ export default function Register() {
           />
           <Input
             icon="lock-closed-outline"
-            placeholder="Password (6+ characters)"
+            placeholder="Password (8+ chars, mixed case & a number)"
             value={password}
             onChangeText={setPassword}
             secureTextEntry

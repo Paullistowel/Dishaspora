@@ -6,7 +6,7 @@ import PressableScale from './PressableScale';
 interface Props {
   title: string;
   onPress?: () => void;
-  variant?: 'orange' | 'black' | 'outline';
+  variant?: 'orange' | 'black' | 'outline' | 'danger';
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
@@ -26,7 +26,13 @@ export default function PrimaryButton({
   haptic = true,
 }: Props) {
   const bg =
-    variant === 'orange' ? colors.accent : variant === 'black' ? colors.ink : 'transparent';
+    variant === 'orange'
+      ? colors.accent
+      : variant === 'black'
+        ? colors.ink
+        : variant === 'danger'
+          ? colors.danger
+          : 'transparent';
   const fg = variant === 'outline' ? colors.ink : '#FFFFFF';
   return (
     <PressableScale

@@ -66,6 +66,13 @@ export default function Market() {
       >
         {listings.isLoading ? (
           <SkeletonGrid count={6} />
+        ) : listings.isError ? (
+          <EmptyState
+            image={3}
+            message="We couldn't load the market. Check your connection and try again."
+            actionLabel="Retry"
+            onAction={() => listings.refetch()}
+          />
         ) : rows.length === 0 ? (
           <EmptyState
             image={3}

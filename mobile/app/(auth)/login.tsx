@@ -83,6 +83,12 @@ export default function Login() {
             secureTextEntry
           />
           <PrimaryButton title="Sign in" onPress={submit} loading={busy} style={{ marginTop: 8 }} />
+          <TouchableOpacity
+            onPress={() => router.push('/(auth)/forgot-password')}
+            style={{ alignSelf: 'center', marginTop: 4 }}
+          >
+            <Text style={styles.link}>Forgot password?</Text>
+          </TouchableOpacity>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(240).duration(400)} style={styles.footer}>

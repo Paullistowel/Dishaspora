@@ -27,7 +27,13 @@ export default function RecipeCard({
   const open = () => router.push({ pathname: '/recipe/[id]', params: { id: String(recipe.id) } });
 
   return (
-    <PressableScale style={[styles.card, style]} onPress={open} tilt>
+    <PressableScale
+      style={[styles.card, style]}
+      onPress={open}
+      tilt
+      accessibilityLabel={`Recipe: ${recipe.title}, ${totalMin} minutes`}
+      accessibilityHint="Opens the recipe"
+    >
       <View style={styles.imageWrap}>
         <Image
           source={{ uri: IMG(recipe.imageUrl) }}

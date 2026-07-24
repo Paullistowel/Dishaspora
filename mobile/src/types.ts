@@ -15,6 +15,8 @@ export interface User {
   premium: boolean;
   premiumUntil: string | null;
   vendorId: number | null;
+  emailVerified: boolean;
+  pendingEmail: string | null;
 }
 
 export type VendorType = 'FOOD' | 'INGREDIENT' | 'BOTH';
@@ -277,4 +279,115 @@ export interface SubscriptionMe {
 export interface OrderCreateResponse {
   order: Order;
   payment: PaystackInit;
+}
+
+// --- Snap & Cook ---
+export interface SnapIngredient {
+  name: string;
+  quantity: string;
+}
+
+export interface SnapStep {
+  number: number;
+  instruction: string;
+}
+
+export interface SnapNutrition {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  servings: number;
+}
+
+export interface SnapResult {
+  dishName: string;
+  description: string;
+  cuisine: string;
+  confidence: number;
+  isFood: boolean;
+  ingredients: SnapIngredient[];
+  steps: SnapStep[];
+  nutrition: SnapNutrition;
+  matchedRecipes: Recipe[];
+}
+
+export interface DetectedIngredient {
+  name: string;
+  confidence: number;
+}
+
+export interface MissingIngredientItem {
+  name: string;
+  quantity: string | null;
+  substitution: string | null;
+}
+
+export interface RecipeMatch {
+  recipe: Recipe;
+  difficulty: string; // Easy | Medium | Hard
+  cookTimeMinutes: number;
+  matchPercent: number;
+  haveIngredients: string[];
+  missingIngredients: MissingIngredientItem[];
+}
+
+export interface IngredientScanResult {
+  detectedIngredients: DetectedIngredient[];
+  recommendations: RecipeMatch[];
+}
+
+// --- Meal planning & calorie tracking (Phases 4 & 5) ---
+export type MealSlot = 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK' | 'DRINK';
+
+export interface PlannedMeal {
+  id: number;
+  date: string; // YYYY-MM-DD
+  slot: MealSlot;
+  title: string;
+  recipeId: number | null;
+  imageUrl: string | null;
+  servings: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  eaten: boolean;
+  notes: string | null;
+}
+
+export interface MacroProgress {
+  consumed: number;
+  goal: number;
+}
+
+export interface DaySummary {
+  date: string;
+  calorieGoal: number;
+  caloriesConsumed: number;
+  caloriesRemaining: number;
+  caloriesPlanned: number;
+  protein: MacroProgress;
+  carbs: MacroProgress;
+  fat: MacroProgress;
+  waterMl: number;
+  waterGoalMl: number;
+  meals: PlannedMeal[];
+}
+
+export interface DayTotals {
+  date: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  waterMl: number;
+}
+
+export interface Goals {
+  calorieGoal: number;
+  proteinGoal: number;
+  carbGoal: number;
+  fatGoal: number;
+  waterGoalMl: number;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -10,14 +10,16 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { Skeleton } from '@/components/Skeleton';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { formatMoney } from '@/money';
-import { colors, shadow, shadowStrong } from '@/theme';
+import { colors, shadowStrong } from '@/theme';
 import type { PaystackInit, Plan } from '@/types';
 
 export default function Subscription() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const toast = useToast();
 
   const plans = useQuery({
     queryKey: ['plans'],
@@ -39,7 +41,7 @@ export default function Subscription() {
         },
       });
     },
-    onError: () => Alert.alert('Subscription failed', 'Could not start the payment.'),
+    onError: () => toast.error('Could not start the payment. Please try again.'),
   });
 
   const isGH = user?.country !== 'NG';
@@ -83,6 +85,13 @@ export default function Subscription() {
         {/* Premium plans (dark card) */}
         {plans.isLoading ? (
           <Skeleton height={280} radius={28} />
+        ) : plans.isError ? (
+          <View style={styles.plansError}>
+            <Text style={styles.plansErrorText}>
+              We couldn't load the premium plans right now.
+            </Text>
+            <PrimaryButton title="Retry" variant="outline" small onPress={() => plans.refetch()} />
+          </View>
         ) : (
           (plans.data ?? []).map((plan, i) => (
             <Animated.View
@@ -125,6 +134,8 @@ export default function Subscription() {
 }
 
 const styles = StyleSheet.create({
+  plansError: { alignItems: 'center', gap: 12, paddingVertical: 24 },
+  plansErrorText: { fontSize: 13.5, color: colors.inkSoft, textAlign: 'center' },
   activeCard: {
     flexDirection: 'row',
     alignItems: 'center',

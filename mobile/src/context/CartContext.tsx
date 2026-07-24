@@ -1,11 +1,16 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { Currency, Listing } from '../types';
+
+const CART_KEY = 'dishaspora.cart';
 
 export interface CartItem {
   listing: Listing;
@@ -39,6 +44,30 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  // Don't write back to storage until the initial load has run, or we'd clobber a
+  // saved cart with the empty starting state on first render.
+  const hydrated = useRef(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CART_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setItems(parsed);
+        }
+      } catch {
+        // Corrupt/absent cart — start empty.
+      } finally {
+        hydrated.current = true;
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    AsyncStorage.setItem(CART_KEY, JSON.stringify(items)).catch(() => {});
+  }, [items]);
 
   const vendorId = items.length > 0 ? items[0].listing.vendorId : null;
   const vendorName = items.length > 0 ? items[0].listing.vendorName : null;

@@ -39,7 +39,7 @@ const SLIDES = [
 export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { completeOnboarding } = useAuth();
+  const { completeOnboarding, token } = useAuth();
   const [page, setPage] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -47,12 +47,17 @@ export default function Onboarding() {
     setPage(Math.round(e.nativeEvent.contentOffset.x / width));
   };
 
+  const finish = async () => {
+    await completeOnboarding();
+    // Reached after sign-up (authenticated) → into the app; otherwise → sign in.
+    router.replace(token ? '/(tabs)' : '/(auth)/login');
+  };
+
   const next = async () => {
     if (page < SLIDES.length - 1) {
       scrollRef.current?.scrollTo({ x: (page + 1) * width, animated: true });
     } else {
-      await completeOnboarding();
-      router.replace('/(auth)/login');
+      await finish();
     }
   };
 

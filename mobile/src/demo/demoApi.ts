@@ -6,11 +6,20 @@ import type {
   Basket,
   ChatMessage,
   Country,
+  DaySummary,
+  DayTotals,
+  DetectedIngredient,
+  Goals,
+  IngredientScanResult,
   Listing,
+  MealSlot,
+  MissingIngredientItem,
   Order,
   PassportStamp,
   PaystackInit,
+  PlannedMeal,
   Recipe,
+  RecipeMatch,
   Review,
   SmartSearchFilters,
   User,
@@ -54,6 +63,9 @@ const state = {
   myRecipes: [] as Recipe[],
   myListings: [] as Listing[],
   pendingPayment: null as { kind: 'order' | 'subscription'; orderId?: number } | null,
+  plannedMeals: [] as PlannedMeal[],
+  water: {} as Record<string, number>,
+  goals: { calorieGoal: 2000, proteinGoal: 120, carbGoal: 250, fatGoal: 70, waterGoalMl: 2000 } as Goals,
 };
 
 const delay = (ms = 350) => new Promise<void>((res) => setTimeout(res, ms));
@@ -68,6 +80,89 @@ class DemoError extends Error {
 
 const num = (v: Query[string]) => (v === undefined || v === null || v === '' ? null : Number(v));
 const str = (v: Query[string]) => (v === undefined || v === null ? null : String(v));
+
+// ---- nutrition demo helpers ----
+function addDaysStr(s: string, n: number): string {
+  const [y, mo, d] = s.split('-').map(Number);
+  const dt = new Date(y, mo - 1, d);
+  dt.setDate(dt.getDate() + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+const mealSum = (arr: PlannedMeal[], key: 'calories' | 'protein' | 'carbs' | 'fat') =>
+  arr.reduce((s, m) => s + (m[key] as number), 0);
+
+const DEMO_SUBS: Record<string, string> = {
+  butter: 'olive oil or margarine', tomato: 'canned tomatoes', onion: 'shallots or leeks',
+  garlic: 'garlic powder', ginger: 'ground ginger', spinach: 'kale or ugu', egg: 'flax egg (baking)',
+  chicken: 'turkey or tofu', beef: 'goat or mushrooms', fish: 'prawns', rice: 'couscous or quinoa',
+  groundnut: 'peanut butter', 'palm oil': 'vegetable oil with paprika', pepper: 'chilli flakes',
+};
+function demoSub(name: string): string | null {
+  const n = name.toLowerCase();
+  const key = Object.keys(DEMO_SUBS).find((k) => n.includes(k));
+  return key ? DEMO_SUBS[key] : null;
+}
+function demoDifficulty(r: Recipe): string {
+  const t = (r.prepMinutes ?? 0) + (r.cookMinutes ?? 0);
+  const steps = r.steps?.length ?? 0;
+  if (t <= 30 && steps <= 5) return 'Easy';
+  if (t <= 60 && steps <= 9) return 'Medium';
+  return 'Hard';
+}
+function demoRecommend(names: string[]): IngredientScanResult {
+  const detected: DetectedIngredient[] = names.map((n) => ({ name: n.toLowerCase(), confidence: 100 }));
+  const set = new Set(detected.map((d) => d.name));
+  const matched = (name: string) => {
+    const ri = name.toLowerCase();
+    for (const d of set) {
+      const ds = d.replace(/(es|s)$/, '');
+      if (ds.length >= 3 && (ri.includes(ds) || ds.includes(ri))) return true;
+    }
+    return false;
+  };
+  const recs: RecipeMatch[] = [];
+  for (const r of state.recipes) {
+    const ings = r.ingredients ?? [];
+    if (ings.length === 0) continue;
+    const have: string[] = [];
+    const missing: MissingIngredientItem[] = [];
+    for (const ing of ings) {
+      if (matched(ing.name)) have.push(ing.name);
+      else missing.push({ name: ing.name, quantity: ing.quantity ?? null, substitution: demoSub(ing.name) });
+    }
+    if (have.length === 0) continue;
+    recs.push({
+      recipe: r,
+      difficulty: demoDifficulty(r),
+      cookTimeMinutes: (r.prepMinutes ?? 0) + (r.cookMinutes ?? 0),
+      matchPercent: Math.round((100 * have.length) / ings.length),
+      haveIngredients: have,
+      missingIngredients: missing,
+    });
+  }
+  recs.sort((a, b) => b.matchPercent - a.matchPercent || a.missingIngredients.length - b.missingIngredients.length);
+  return { detectedIngredients: detected, recommendations: recs.slice(0, 8) };
+}
+
+function demoDaySummary(date: string): DaySummary {
+  const meals = state.plannedMeals.filter((x) => x.date === date);
+  const eaten = meals.filter((x) => x.eaten);
+  const g = state.goals;
+  const cals = mealSum(eaten, 'calories');
+  return {
+    date,
+    calorieGoal: g.calorieGoal,
+    caloriesConsumed: cals,
+    caloriesRemaining: g.calorieGoal - cals,
+    caloriesPlanned: mealSum(meals, 'calories'),
+    protein: { consumed: mealSum(eaten, 'protein'), goal: g.proteinGoal },
+    carbs: { consumed: mealSum(eaten, 'carbs'), goal: g.carbGoal },
+    fat: { consumed: mealSum(eaten, 'fat'), goal: g.fatGoal },
+    waterMl: state.water[date] ?? 0,
+    waterGoalMl: g.waterGoalMl,
+    meals,
+  };
+}
 
 function findRecipe(id: number): Recipe {
   const rec = [...state.recipes, ...state.myRecipes].find((x) => x.id === id);
@@ -289,15 +384,155 @@ export async function demoResolve<T>(
       name: body?.name ?? 'New Cook',
       email: body?.email ?? 'new@demo.com',
       country: (body?.country as Country) ?? 'GH',
-      premium: true,
+      premium: false,
+      avatarUrl: null, // new users get an initials avatar until they upload one
+      emailVerified: false,
+      pendingEmail: null,
     };
     state.user = user;
     return R({ token: 'demo-token', user } satisfies AuthResponse);
+  }
+  if (m === 'POST' && p === '/auth/forgot-password') {
+    return R({ message: "If an account exists for that email, we've sent reset instructions." });
+  }
+  if (m === 'POST' && p === '/auth/reset-password') {
+    return R({ message: 'Your password has been reset. You can now sign in.' });
+  }
+  if (m === 'POST' && p === '/auth/resend-verification') {
+    return R({ message: "If your email needs verification, we've sent a fresh link." });
   }
   if (p === '/users/me' && m === 'GET') return R(state.user);
   if (p === '/users/me' && m === 'PUT') {
     state.user = { ...state.user, ...body };
     return R(state.user);
+  }
+  if (m === 'POST' && p === '/users/me/change-email') {
+    state.user = { ...state.user, pendingEmail: body?.newEmail ?? null };
+    return R({ message: 'We sent a confirmation link to ' + (body?.newEmail ?? '') + '.' });
+  }
+  if (m === 'POST' && p === '/users/me/change-password') {
+    return R({ message: 'Your password has been updated.' });
+  }
+  if (m === 'DELETE' && p === '/users/me') {
+    return R({ message: 'Your account has been deleted.' });
+  }
+
+  // ---- nutrition: meal planning & tracking ----
+  if (m === 'GET' && p === '/plan') {
+    const from = str(params?.from);
+    const to = str(params?.to);
+    return R(
+      state.plannedMeals.filter((x) => (!from || x.date >= from) && (!to || x.date <= to))
+    );
+  }
+  if (m === 'POST' && p === '/plan') {
+    const meal: PlannedMeal = {
+      id: state.nextId++,
+      date: body.date,
+      slot: body.slot,
+      title: body.title,
+      recipeId: body.recipeId ?? null,
+      imageUrl: body.imageUrl ?? null,
+      servings: body.servings ?? 1,
+      calories: body.calories ?? 0,
+      protein: body.protein ?? 0,
+      carbs: body.carbs ?? 0,
+      fat: body.fat ?? 0,
+      eaten: body.eaten ?? false,
+      notes: body.notes ?? null,
+    };
+    state.plannedMeals.push(meal);
+    return R(meal);
+  }
+  const planId = p.match(/^\/plan\/(\d+)$/);
+  if (planId && m === 'PUT') {
+    const meal = state.plannedMeals.find((x) => x.id === Number(planId[1]));
+    if (!meal) throw new DemoError(404, 'Meal not found');
+    Object.assign(meal, body);
+    return R(meal);
+  }
+  if (planId && m === 'DELETE') {
+    state.plannedMeals = state.plannedMeals.filter((x) => x.id !== Number(planId[1]));
+    return R({});
+  }
+  const dupId = p.match(/^\/plan\/(\d+)\/duplicate$/);
+  if (dupId && m === 'POST') {
+    const src = state.plannedMeals.find((x) => x.id === Number(dupId[1]));
+    if (!src) throw new DemoError(404, 'Meal not found');
+    const copy: PlannedMeal = { ...src, id: state.nextId++, date: body.date, slot: body.slot ?? src.slot, eaten: false };
+    state.plannedMeals.push(copy);
+    return R(copy);
+  }
+  const eatenId = p.match(/^\/plan\/(\d+)\/eaten$/);
+  if (eatenId && m === 'POST') {
+    const meal = state.plannedMeals.find((x) => x.id === Number(eatenId[1]));
+    if (!meal) throw new DemoError(404, 'Meal not found');
+    meal.eaten = !!body.eaten;
+    return R(meal);
+  }
+  if (m === 'POST' && p === '/plan/generate') {
+    const start: string = body.startDate;
+    const days: number = body.days ?? 7;
+    const slots: MealSlot[] = ['BREAKFAST', 'LUNCH', 'DINNER'];
+    const created: PlannedMeal[] = [];
+    let k = 0;
+    for (let d = 0; d < days; d++) {
+      const date = addDaysStr(start, d);
+      for (const slot of slots) {
+        const r = state.recipes[k++ % state.recipes.length];
+        const meal: PlannedMeal = {
+          id: state.nextId++,
+          date,
+          slot,
+          title: r.title,
+          recipeId: r.id,
+          imageUrl: r.imageUrl,
+          servings: 1,
+          calories: r.calories,
+          protein: Math.round((r.calories * 0.25) / 4),
+          carbs: Math.round((r.calories * 0.5) / 4),
+          fat: Math.round((r.calories * 0.25) / 9),
+          eaten: false,
+          notes: null,
+        };
+        state.plannedMeals.push(meal);
+        created.push(meal);
+      }
+    }
+    return R(created);
+  }
+  if (m === 'GET' && p === '/diary/day') {
+    return R(demoDaySummary(str(params?.date) ?? ''));
+  }
+  if (m === 'GET' && p === '/diary/range') {
+    const from = str(params?.from) ?? '';
+    const to = str(params?.to) ?? '';
+    const out: DayTotals[] = [];
+    for (let d = from; d && d <= to; d = addDaysStr(d, 1)) {
+      const eaten = state.plannedMeals.filter((x) => x.date === d && x.eaten);
+      out.push({
+        date: d,
+        calories: mealSum(eaten, 'calories'),
+        protein: mealSum(eaten, 'protein'),
+        carbs: mealSum(eaten, 'carbs'),
+        fat: mealSum(eaten, 'fat'),
+        waterMl: state.water[d] ?? 0,
+      });
+    }
+    return R(out);
+  }
+  if (m === 'POST' && p === '/diary/water') {
+    const date: string = body.date;
+    state.water[date] = Math.max(0, (state.water[date] ?? 0) + (body.milliliters ?? 0));
+    return R(demoDaySummary(date));
+  }
+  if (m === 'POST' && p === '/snap/recommend') {
+    return R(demoRecommend(Array.isArray(body?.ingredients) ? body.ingredients : []));
+  }
+  if (m === 'GET' && p === '/diary/goals') return R(state.goals);
+  if (m === 'PUT' && p === '/diary/goals') {
+    state.goals = { ...state.goals, ...body };
+    return R(state.goals);
   }
 
   // ---- recipes ----
@@ -491,6 +726,12 @@ export async function demoResolve<T>(
         l.country === country
     );
     return R({ content: list, totalElements: list.length, totalPages: 1 });
+  }
+  const listingIdMatch = p.match(/^\/listings\/(\d+)$/);
+  if (listingIdMatch && m === 'GET') {
+    const l = [...state.listings, ...state.myListings].find((x) => x.id === Number(listingIdMatch[1]));
+    if (!l) throw new DemoError(404, 'Listing not found');
+    return R(l);
   }
   if (m === 'POST' && p === '/listings') {
     const vendor = state.myVendor;

@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
+import { ToastProvider } from '@/context/ToastContext';
 import AnimatedSplash from '@/components/AnimatedSplash';
 import { colors } from '@/theme';
 
@@ -24,6 +25,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <CartProvider>
+            <ToastProvider>
             <StatusBar style="dark" />
             <Stack
               screenOptions={{
@@ -40,6 +42,7 @@ export default function RootLayout() {
             </Stack>
             {/* Animated splash overlay — plays on cold start, then fades to reveal the app. */}
             {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
+            </ToastProvider>
           </CartProvider>
         </AuthProvider>
       </QueryClientProvider>

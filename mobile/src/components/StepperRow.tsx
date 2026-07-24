@@ -15,10 +15,12 @@ export default function StepperRow({
   item,
   onInc,
   onDec,
+  onRemove,
 }: {
   item: CartItem;
   onInc: () => void;
   onDec: () => void;
+  onRemove?: () => void;
 }) {
   const { listing, qty } = item;
   return (
@@ -29,9 +31,22 @@ export default function StepperRow({
         contentFit="cover"
       />
       <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={2}>
-          {listing.title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={2}>
+            {listing.title}
+          </Text>
+          {onRemove ? (
+            <TouchableOpacity
+              onPress={onRemove}
+              hitSlop={8}
+              style={styles.removeBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${listing.title} from cart`}
+            >
+              <Ionicons name="trash-outline" size={17} color={colors.inkFaint} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <View style={styles.metaRow}>
           {listing.type === 'INGREDIENT' ? (
             <Text style={styles.metaText}>
@@ -47,8 +62,17 @@ export default function StepperRow({
           )}
         </View>
         <View style={styles.bottomRow}>
-          <View style={styles.stepper}>
-            <TouchableOpacity style={styles.stepBtn} onPress={onDec} hitSlop={6}>
+          <View
+            style={styles.stepper}
+            accessibilityLabel={`Quantity ${qty} of ${listing.title}`}
+          >
+            <TouchableOpacity
+              style={styles.stepBtn}
+              onPress={onDec}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease quantity"
+            >
               <Ionicons name="remove" size={16} color={colors.inkSoft} />
             </TouchableOpacity>
             <Text style={styles.qty}>{qty}</Text>
@@ -56,6 +80,8 @@ export default function StepperRow({
               style={[styles.stepBtn, styles.stepBtnPlus]}
               onPress={onInc}
               hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Increase quantity"
             >
               <Ionicons name="add" size={16} color={colors.accentDark} />
             </TouchableOpacity>
@@ -85,7 +111,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   body: { flex: 1, justifyContent: 'space-between' },
-  title: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  title: { flex: 1, fontSize: 14.5, fontWeight: '600', color: colors.ink },
+  removeBtn: { padding: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   metaText: { fontSize: 12, color: colors.inkFaint },
   bottomRow: {

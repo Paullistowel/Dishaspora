@@ -4,9 +4,10 @@ import { useAuth } from '@/context/AuthContext';
 import { LoadingView } from '@/components/StatusViews';
 
 export default function Index() {
-  const { loading, token, onboarded } = useAuth();
+  const { loading, token } = useAuth();
   if (loading) return <LoadingView />;
-  if (!onboarded) return <Redirect href="/onboarding" />;
+  // Onboarding is shown right after sign-up (see register + onboarding screens),
+  // so the launch gate only decides auth: no token → sign in, else → app.
   if (!token) return <Redirect href="/(auth)/login" />;
   return <Redirect href="/(tabs)" />;
 }

@@ -1,11 +1,10 @@
 import React from 'react';
-import { Alert, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import PressableScale from './PressableScale';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { IMG } from '../config';
-import { useCart } from '../context/CartContext';
 import { colors, shadow } from '../theme';
 import type { Listing } from '../types';
 import Avatar from './Avatar';
@@ -26,29 +25,18 @@ export default function ProductCard({
   hideVendor?: boolean;
 }) {
   const router = useRouter();
-  const cart = useCart();
 
-  const buyNow = () => {
-    if (!listing.available) return;
-    const res = cart.add(listing);
-    if (res === 'different-vendor') {
-      Alert.alert(
-        'Start a new cart?',
-        `Your cart has items from ${cart.vendorName}. Only one vendor per order — replace the cart with items from ${listing.vendorName}?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Replace', style: 'destructive', onPress: () => cart.replaceWith(listing) },
-        ]
-      );
-    }
-  };
-
-  const openVendor = () =>
-    router.push({ pathname: '/vendor/[id]', params: { id: String(listing.vendorId) } });
+  const openDetail = () =>
+    router.push({ pathname: '/listing/[id]', params: { id: String(listing.id) } });
 
   return (
     <View style={[styles.card, style]}>
-      <PressableScale onPress={openVendor} tilt>
+      <PressableScale
+        onPress={openDetail}
+        tilt
+        accessibilityLabel={`${listing.title}${listing.available ? '' : ', out of stock'}`}
+        accessibilityHint="Opens product details"
+      >
         <View style={styles.imageWrap}>
           <Image
             source={{ uri: IMG(listing.imageUrl) }}
@@ -92,10 +80,10 @@ export default function ProductCard({
         style={{ marginTop: 4 }}
       />
       <PrimaryButton
-        title={listing.available ? 'Buy now' : 'Out of stock'}
+        title={listing.available ? 'View item' : 'Out of stock'}
         small
         disabled={!listing.available}
-        onPress={buyNow}
+        onPress={openDetail}
         style={{ marginTop: 8 }}
       />
     </View>

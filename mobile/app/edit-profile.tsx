@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,25 +35,49 @@ export default function EditProfile() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
   const [uploading, setUploading] = useState(false);
 
+  const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB before compression
+
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      quality: 0.9,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > MAX_UPLOAD_BYTES) {
+      Alert.alert('Image too large', 'Please choose a photo under 10 MB.');
+      return;
+    }
     setUploading(true);
     try {
-      const { url } = await api.upload({
-        uri: asset.uri,
-        name: asset.fileName ?? 'avatar.jpg',
-        mimeType: asset.mimeType ?? 'image/jpeg',
-      });
-      setAvatarUrl(url);
-    } catch {
-      Alert.alert('Upload failed', 'Could not upload the image.');
+      // Normalise to a small square JPEG so avatars are consistent and light.
+      const square = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 512, height: 512 } }],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const { url } = await api.upload({ uri: square.uri, name: 'avatar.jpg', mimeType: 'image/jpeg' });
+      // Persist immediately so the new photo shows app-wide right away.
+      const fresh = await api.put<User>('/users/me', { avatarUrl: url });
+      setAvatarUrl(fresh.avatarUrl);
+      await updateUser(fresh);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.message ?? 'Could not upload the image.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    setUploading(true);
+    try {
+      const fresh = await api.put<User>('/users/me', { avatarUrl: '' });
+      setAvatarUrl(null);
+      await updateUser(fresh);
+    } catch (e: any) {
+      Alert.alert('Could not remove', e?.message ?? 'Please try again.');
     } finally {
       setUploading(false);
     }
@@ -66,6 +91,12 @@ export default function EditProfile() {
       router.back();
     },
     onError: (e: any) => Alert.alert('Could not save', e?.message ?? 'Please try again.'),
+  });
+
+  const resend = useMutation({
+    mutationFn: () => api.post<{ message: string }>('/auth/resend-verification', { email: user?.email }),
+    onSuccess: (r) => Alert.alert('Verification sent', r.message),
+    onError: (e: any) => Alert.alert('Could not send', e?.message ?? 'Please try again.'),
   });
 
   return (
@@ -83,7 +114,43 @@ export default function EditProfile() {
             </View>
           </TouchableOpacity>
           {uploading ? <Text style={styles.uploading}>Uploading photo...</Text> : null}
+          {avatarUrl ? (
+            <TouchableOpacity onPress={removeAvatar} disabled={uploading} style={{ alignSelf: 'center' }}>
+              <Text style={styles.removePhoto}>Remove photo</Text>
+            </TouchableOpacity>
+          ) : null}
           <Input icon="person-outline" placeholder="Full name" value={name} onChangeText={setName} />
+
+          {/* Email + verification (Phases 7 & 8) */}
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.emailRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.emailText} numberOfLines={1}>{user?.email}</Text>
+              <View style={styles.emailBadgeRow}>
+                <Ionicons
+                  name={user?.emailVerified ? 'checkmark-circle' : 'alert-circle-outline'}
+                  size={13}
+                  color={user?.emailVerified ? colors.success : colors.accentDark}
+                />
+                <Text style={[styles.emailBadge, { color: user?.emailVerified ? colors.success : colors.accentDark }]}>
+                  {user?.emailVerified ? 'Verified' : 'Not verified'}
+                </Text>
+                {user?.pendingEmail ? (
+                  <Text style={styles.pending}>· pending: {user.pendingEmail}</Text>
+                ) : null}
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/change-email')}>
+              <Text style={styles.link}>Change</Text>
+            </TouchableOpacity>
+          </View>
+          {!user?.emailVerified ? (
+            <TouchableOpacity onPress={() => resend.mutate()} disabled={resend.isPending}>
+              <Text style={styles.link}>
+                {resend.isPending ? 'Sending…' : 'Resend verification email'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <Text style={styles.label}>Country</Text>
           <View style={styles.chips}>
             <ChoiceChip
@@ -130,6 +197,20 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   uploading: { textAlign: 'center', fontSize: 12.5, color: colors.inkSoft },
+  removePhoto: { textAlign: 'center', fontSize: 13, color: colors.danger, fontWeight: '600' },
   label: { fontSize: 14, fontWeight: '600', color: colors.ink },
   chips: { flexDirection: 'row', gap: 12 },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: 14,
+  },
+  emailText: { fontSize: 14, color: colors.ink, fontWeight: '600' },
+  emailBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' },
+  emailBadge: { fontSize: 12, fontWeight: '600' },
+  pending: { fontSize: 11.5, color: colors.inkFaint },
+  link: { color: colors.blueDark, fontSize: 14, fontWeight: '600' },
 });

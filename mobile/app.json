@@ -14,14 +14,19 @@
       "backgroundColor": "#FDF5EA"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Dishaspora uses your camera for Snap & Cook, to photograph a dish and get an AI recipe.",
+        "NSPhotoLibraryUsageDescription": "Dishaspora needs access to your photos so you can pick a dish photo or set a profile picture."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/dishaspora-logo.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.dishaspora.app"
+      "package": "com.dishaspora.app",
+      "permissions": ["android.permission.CAMERA"]
     },
     "plugins": [
       "expo-router",
@@ -29,6 +34,18 @@
       "expo-audio",
       "expo-font",
       "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Dishaspora uses your camera for Snap & Cook, to photograph a dish and get an AI recipe."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Dishaspora needs access to your photos so you can pick a dish photo or set a profile picture."
+        }
+      ],
       [
         "expo-build-properties",
         {

@@ -1,52 +1,30 @@
 import React from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '@/api';
 import EmptyState from '@/components/EmptyState';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import StepperRow from '@/components/StepperRow';
 import SummaryBlock from '@/components/SummaryBlock';
 import { useCart } from '@/context/CartContext';
+import { DELIVERY_MINOR, orderTotals } from '@/fees';
 import { colors, shadow } from '@/theme';
-import type { OrderCreateResponse } from '@/types';
-
-// Fees mirror the backend: 7% platform fee + flat 300 minor units delivery.
-const FEE_RATE = 0.07;
-const DELIVERY_MINOR = 300;
 
 export default function Cart() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const cart = useCart();
 
-  const checkout = useMutation({
-    mutationFn: () =>
-      api.post<OrderCreateResponse>('/orders', {
-        items: cart.items.map((it) => ({ listingId: it.listing.id, qty: it.qty })),
-      }),
-    onSuccess: ({ order, payment }) => {
-      router.push({
-        pathname: '/pay',
-        params: {
-          kind: 'order',
-          orderId: String(order.id),
-          reference: payment.reference,
-          url: payment.authorizationUrl,
-          amountMinor: String(payment.amountMinor),
-          currency: payment.currency,
-        },
-      });
-    },
-    onError: (e: any) =>
-      Alert.alert('Checkout failed', e?.message ?? 'Could not create the order.'),
-  });
+  const confirmRemove = (listingId: number, title: string) => {
+    Alert.alert('Remove item', `Remove “${title}” from your cart?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => cart.remove(listingId) },
+    ]);
+  };
 
-  const feeMinor = Math.round(cart.subtotalMinor * FEE_RATE);
-  const totalMinor = cart.subtotalMinor + feeMinor + DELIVERY_MINOR;
+  const { feeMinor, totalMinor } = orderTotals(cart.subtotalMinor);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
@@ -78,6 +56,7 @@ export default function Cart() {
                   item={item}
                   onInc={() => cart.setQty(item.listing.id, item.qty + 1)}
                   onDec={() => cart.setQty(item.listing.id, item.qty - 1)}
+                  onRemove={() => confirmRemove(item.listing.id, item.listing.title)}
                 />
               </Animated.View>
             ))}
@@ -92,10 +71,9 @@ export default function Cart() {
               currency={cart.currency ?? 'GHS'}
             />
             <PrimaryButton
-              title="Checkout"
+              title="Proceed to checkout"
               variant="black"
-              loading={checkout.isPending}
-              onPress={() => checkout.mutate()}
+              onPress={() => router.push('/checkout')}
               style={{ marginTop: 16 }}
             />
           </Animated.View>

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Dimensions,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -31,13 +30,11 @@ import SearchRow from '@/components/SearchRow';
 import SectionHeader from '@/components/SectionHeader';
 import { Skeleton, SkeletonGrid, SkeletonRow } from '@/components/Skeleton';
 import StoryRing from '@/components/StoryRing';
+import VerifyEmailBanner from '@/components/VerifyEmailBanner';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
 import { colors, shadow, shadowStrong } from '@/theme';
 import type { Page, Recipe, Story, Vendor } from '@/types';
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const HERO_W = SCREEN_W - 40;
 
 function DishOfTheDay({ recipes }: { recipes: Recipe[] }) {
   const router = useRouter();
@@ -169,9 +166,48 @@ export default function Home() {
         </TouchableOpacity>
       </Animated.View>
 
+      {/* Email verification nudge (hidden once verified) */}
+      <VerifyEmailBanner />
+
       {/* Search row navigates to Search tab */}
       <Animated.View entering={FadeInDown.delay(60).duration(350)} style={styles.section}>
         <SearchRow onPressInput={() => router.push('/(tabs)/search')} />
+      </Animated.View>
+
+      {/* Snap & Cook — photograph a dish for an AI recipe + nutrition */}
+      <Animated.View entering={FadeInDown.delay(90).duration(350)} style={styles.section}>
+        <PressableScale tilt onPress={() => router.push('/snap')}>
+          <View style={styles.snapBanner}>
+            <View style={styles.snapIcon}>
+              <Ionicons name="camera" size={22} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.snapTitle}>Snap & Cook</Text>
+              <Text style={styles.snapSub} numberOfLines={1}>
+                Photograph any dish — get the recipe & nutrition.
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward-circle" size={26} color={colors.accent} />
+          </View>
+        </PressableScale>
+      </Animated.View>
+
+      {/* Plan & Track quick actions */}
+      <Animated.View entering={FadeInDown.delay(105).duration(350)} style={[styles.section, styles.quickRow]}>
+        <PressableScale tilt onPress={() => router.push('/planner')} style={{ flex: 1 }}>
+          <View style={[styles.quickCard, { backgroundColor: colors.brandLight }]}>
+            <Ionicons name="calendar-outline" size={22} color={colors.brandDark} />
+            <Text style={styles.quickTitle}>Meal plan</Text>
+            <Text style={styles.quickSub}>Plan your week</Text>
+          </View>
+        </PressableScale>
+        <PressableScale tilt onPress={() => router.push('/tracker')} style={{ flex: 1 }}>
+          <View style={[styles.quickCard, { backgroundColor: colors.blueLight }]}>
+            <Ionicons name="flame-outline" size={22} color={colors.blueDark} />
+            <Text style={styles.quickTitle}>Track</Text>
+            <Text style={styles.quickSub}>Calories & water</Text>
+          </View>
+        </PressableScale>
       </Animated.View>
 
       {/* Dish of the day (cyan gradient hero) */}
@@ -417,4 +453,27 @@ const styles = StyleSheet.create({
   premiumD: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
   premiumTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
   premiumSub: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+  snapBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.accentLight,
+    borderRadius: 20,
+    padding: 14,
+    ...shadow,
+  },
+  snapIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  snapTitle: { fontSize: 15, fontWeight: '800', color: colors.ink },
+  snapSub: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+  quickRow: { flexDirection: 'row', gap: 12 },
+  quickCard: { borderRadius: 18, padding: 16, gap: 6, ...shadow },
+  quickTitle: { fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 4 },
+  quickSub: { fontSize: 12, color: colors.inkSoft },
 });

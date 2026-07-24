@@ -31,8 +31,8 @@ const TEAL_PALE = '#E4F8FB';
 const AMBER = '#F0A26A';
 
 /** Total runtime including the exit fade. Tune the whole sequence from here. */
-const TOTAL = 7000;
-const EXIT_AT = 6300;
+const TOTAL = 3200;
+const EXIT_AT = 2600;
 const EXIT_MS = TOTAL - EXIT_AT;
 
 /** How long "hold to enter" takes. The ring fills over exactly this long. */
@@ -43,8 +43,8 @@ const REDUCED_TOTAL = 1400;
 
 /** The line that types itself out, one character at a time. */
 const TYPED = 'TASTE OF HOME';
-const TYPE_START = 2000;
-const TYPE_PER_CHAR = 85;
+const TYPE_START = 900;
+const TYPE_PER_CHAR = 70;
 
 const GENTLE = Easing.bezier(0.16, 1, 0.3, 1);
 const STANDARD = Easing.bezier(0.4, 0, 0.2, 1);

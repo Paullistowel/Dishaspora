@@ -35,6 +35,13 @@ export default function Saved() {
       >
         {saved.isLoading ? (
           <SkeletonGrid count={4} />
+        ) : saved.isError ? (
+          <EmptyState
+            image={2}
+            message="We couldn't load your favorites. Check your connection and try again."
+            actionLabel="Retry"
+            onAction={() => saved.refetch()}
+          />
         ) : (saved.data ?? []).length === 0 ? (
           <EmptyState
             image={2}

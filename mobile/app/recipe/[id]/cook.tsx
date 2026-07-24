@@ -22,6 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api';
+import { useToast } from '@/context/ToastContext';
 import CircleButton from '@/components/CircleButton';
 import Flag from '@/components/Flag';
 import PrimaryButton from '@/components/PrimaryButton';
@@ -115,6 +116,7 @@ export default function SnapAndCook() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [index, setIndex] = useState(0);
   const [stampResult, setStampResult] = useState<CookedResponse | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -132,6 +134,7 @@ export default function SnapAndCook() {
       queryClient.invalidateQueries({ queryKey: ['passport'] });
       queryClient.invalidateQueries({ queryKey: ['recipe', Number(id)] });
     },
+    onError: () => toast.error("Couldn't save this to your passport. Try again."),
   });
 
   // Honour the serving count chosen on the detail screen so the step timers

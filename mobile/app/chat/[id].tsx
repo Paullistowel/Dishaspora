@@ -16,6 +16,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api';
 import ScreenHeader from '@/components/ScreenHeader';
+import { useToast } from '@/context/ToastContext';
 import { colors } from '@/theme';
 import type { ChatMessage, ChatThread } from '@/types';
 
@@ -24,6 +25,7 @@ export default function ChatThreadScreen() {
   const threadId = Number(id);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<ScrollView>(null);
@@ -78,6 +80,11 @@ export default function ChatThreadScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ['chat-threads'] });
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    },
+    onError: (_e, body) => {
+      // Restore the unsent text so the user doesn't lose what they typed.
+      setInput((cur) => (cur.length ? cur : body));
+      toast.error("Message didn't send. Check your connection and try again.");
     },
   });
 
