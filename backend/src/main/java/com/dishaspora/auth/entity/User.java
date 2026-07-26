@@ -42,6 +42,31 @@ public class User {
 
     private boolean banned;
 
+    /** Soft-delete: the row is kept for order history but the account can no longer sign in. */
+    private boolean deleted;
+
+    /** Email verification (Phase 7). */
+    private boolean emailVerified;
+    private String verificationToken;
+    private Instant verificationTokenExpiry;
+    private Instant verificationSentAt;
+
+    /** Password reset (Phase 6). */
+    private String resetToken;
+    private Instant resetTokenExpiry;
+
+    /** Change-email (Phase 8): the new address stays pending until confirmed. */
+    private String pendingEmail;
+    private String emailChangeToken;
+    private Instant emailChangeTokenExpiry;
+
+    /** Nutrition goals (Phase 5). Sensible defaults; editable by the user. */
+    private int calorieGoal = 2000;
+    private int proteinGoal = 120;
+    private int carbGoal = 250;
+    private int fatGoal = 70;
+    private int waterGoalMl = 2000;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -73,6 +98,36 @@ public class User {
     public void setVendorId(Long vendorId) { this.vendorId = vendorId; }
     public boolean isBanned() { return banned; }
     public void setBanned(boolean banned) { this.banned = banned; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+    public String getVerificationToken() { return verificationToken; }
+    public void setVerificationToken(String verificationToken) { this.verificationToken = verificationToken; }
+    public Instant getVerificationTokenExpiry() { return verificationTokenExpiry; }
+    public void setVerificationTokenExpiry(Instant v) { this.verificationTokenExpiry = v; }
+    public Instant getVerificationSentAt() { return verificationSentAt; }
+    public void setVerificationSentAt(Instant verificationSentAt) { this.verificationSentAt = verificationSentAt; }
+    public String getResetToken() { return resetToken; }
+    public void setResetToken(String resetToken) { this.resetToken = resetToken; }
+    public Instant getResetTokenExpiry() { return resetTokenExpiry; }
+    public void setResetTokenExpiry(Instant resetTokenExpiry) { this.resetTokenExpiry = resetTokenExpiry; }
+    public String getPendingEmail() { return pendingEmail; }
+    public void setPendingEmail(String pendingEmail) { this.pendingEmail = pendingEmail; }
+    public String getEmailChangeToken() { return emailChangeToken; }
+    public void setEmailChangeToken(String emailChangeToken) { this.emailChangeToken = emailChangeToken; }
+    public Instant getEmailChangeTokenExpiry() { return emailChangeTokenExpiry; }
+    public void setEmailChangeTokenExpiry(Instant e) { this.emailChangeTokenExpiry = e; }
+    public int getCalorieGoal() { return calorieGoal; }
+    public void setCalorieGoal(int calorieGoal) { this.calorieGoal = calorieGoal; }
+    public int getProteinGoal() { return proteinGoal; }
+    public void setProteinGoal(int proteinGoal) { this.proteinGoal = proteinGoal; }
+    public int getCarbGoal() { return carbGoal; }
+    public void setCarbGoal(int carbGoal) { this.carbGoal = carbGoal; }
+    public int getFatGoal() { return fatGoal; }
+    public void setFatGoal(int fatGoal) { this.fatGoal = fatGoal; }
+    public int getWaterGoalMl() { return waterGoalMl; }
+    public void setWaterGoalMl(int waterGoalMl) { this.waterGoalMl = waterGoalMl; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

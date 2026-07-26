@@ -84,6 +84,13 @@ public class ListingService {
         return new PageDto<>(content, result.getTotalElements(), result.getTotalPages());
     }
 
+    public ListingDto getById(Long id) {
+        Listing listing = find(id);
+        Vendor vendor = vendorRepository.findById(listing.getVendorId())
+                .orElseThrow(() -> new NotFoundException("Vendor not found"));
+        return ListingDto.from(listing, vendor);
+    }
+
     public List<ListingDto> vendorListings(Long vendorId) {
         Vendor vendor = vendorRepository.findById(vendorId)
                 .orElseThrow(() -> new NotFoundException("Vendor not found"));

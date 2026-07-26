@@ -33,6 +33,11 @@ public class ListingController {
         return listingService.search(type, q, country, page, size, user);
     }
 
+    @GetMapping("/{id}")
+    public ListingDto getById(@PathVariable Long id) {
+        return listingService.getById(id);
+    }
+
     @PostMapping
     public ResponseEntity<ListingDto> create(@Valid @RequestBody ListingRequest request,
                                              @AuthenticationPrincipal User user) {

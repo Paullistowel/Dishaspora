@@ -3,7 +3,8 @@ package com.dishaspora.auth.dto;
 import com.dishaspora.auth.entity.User;
 
 public record UserDto(Long id, String name, String email, String role, String country,
-                      String avatarUrl, boolean premium, String premiumUntil, Long vendorId) {
+                      String avatarUrl, boolean premium, String premiumUntil, Long vendorId,
+                      boolean emailVerified, String pendingEmail) {
 
     public static UserDto from(User user) {
         return new UserDto(
@@ -15,6 +16,8 @@ public record UserDto(Long id, String name, String email, String role, String co
                 user.getAvatarUrl(),
                 user.isPremiumActive(),
                 user.getPremiumUntil() == null ? null : user.getPremiumUntil().toString(),
-                user.getVendorId());
+                user.getVendorId(),
+                user.isEmailVerified(),
+                user.getPendingEmail());
     }
 }

@@ -39,7 +39,8 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/images/**", "/uploads/**", "/error").permitAll()
+                .requestMatchers("/api/auth/**", "/api/health", "/api/payments/callback",
+                        "/images/**", "/uploads/**", "/error").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // authenticated endpoints that would otherwise match public GET patterns
                 .requestMatchers(HttpMethod.GET, "/api/vendors/me").authenticated()
@@ -47,7 +48,7 @@ public class SecurityConfig {
                         "/api/recipes", "/api/recipes/trending", "/api/recipes/*",
                         "/api/recipes/*/reviews", "/api/stories",
                         "/api/vendors", "/api/vendors/*", "/api/vendors/*/listings", "/api/vendors/*/reviews",
-                        "/api/listings", "/api/subscription/plans").permitAll()
+                        "/api/listings", "/api/listings/*", "/api/subscription/plans").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(ex -> ex

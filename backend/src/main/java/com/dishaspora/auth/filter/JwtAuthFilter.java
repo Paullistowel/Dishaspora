@@ -44,6 +44,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Optional<User> userOpt = userRepository.findById(userId);
                 if (userOpt.isPresent()) {
                     User user = userOpt.get();
+                    if (user.isDeleted()) {
+                        writeError(response, 401, "This account has been deleted.");
+                        return;
+                    }
                     if (user.isBanned()) {
                         writeError(response, 403, "Your account has been banned. Contact support.");
                         return;

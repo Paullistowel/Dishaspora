@@ -15,7 +15,7 @@ import java.util.Map;
  * rule-based assistant.
  */
 @Component
-public class ClaudeClient {
+public class ClaudeClient implements AiClient {
 
     private static final String BASE_URL = "https://api.anthropic.com";
     private static final String MODEL = "claude-sonnet-5";
@@ -29,32 +29,57 @@ public class ClaudeClient {
         this.restClient = RestClient.builder().baseUrl(BASE_URL).build();
     }
 
+    @Override
     public boolean isConfigured() {
         return !apiKey.isBlank();
     }
 
-    public record Turn(String role, String content) {}
-
     /**
      * Sends a chat to Claude and returns the assistant text, or null on failure.
      */
-    @SuppressWarnings("unchecked")
+    @Override
     public String chat(String systemPrompt, List<Turn> history, String userMessage) {
         if (!isConfigured()) return null;
-        try {
-            List<Map<String, String>> messages = new ArrayList<>();
-            if (history != null) {
-                for (Turn turn : history) {
-                    if (turn.content() == null || turn.content().isBlank()) continue;
-                    String role = "assistant".equalsIgnoreCase(turn.role()) ? "assistant" : "user";
-                    messages.add(Map.of("role", role, "content", turn.content()));
-                }
+        List<Map<String, Object>> messages = new ArrayList<>();
+        if (history != null) {
+            for (Turn turn : history) {
+                if (turn.content() == null || turn.content().isBlank()) continue;
+                String role = "assistant".equalsIgnoreCase(turn.role()) ? "assistant" : "user";
+                messages.add(Map.<String, Object>of("role", role, "content", turn.content()));
             }
-            messages.add(Map.of("role", "user", "content", userMessage));
+        }
+        messages.add(Map.<String, Object>of("role", "user", "content", userMessage));
+        return send(systemPrompt, messages, 700);
+    }
 
+    /**
+     * Sends a single image plus an instruction to Claude's vision model and returns
+     * the assistant text, or null on failure / when unconfigured. {@code mediaType}
+     * is an image MIME type such as {@code image/jpeg} or {@code image/png}.
+     */
+    @Override
+    public String vision(String systemPrompt, String base64Image, String mediaType,
+                         String instruction, int maxTokens) {
+        if (!isConfigured()) return null;
+        Map<String, Object> imageBlock = Map.of(
+                "type", "image",
+                "source", Map.of(
+                        "type", "base64",
+                        "media_type", mediaType,
+                        "data", base64Image));
+        Map<String, Object> textBlock = Map.<String, Object>of("type", "text", "text", instruction);
+        List<Map<String, Object>> messages = List.of(
+                Map.<String, Object>of("role", "user", "content", List.of(imageBlock, textBlock)));
+        return send(systemPrompt, messages, maxTokens);
+    }
+
+    /** Low-level Messages API call; returns concatenated text blocks or null. */
+    @SuppressWarnings("unchecked")
+    private String send(String systemPrompt, List<Map<String, Object>> messages, int maxTokens) {
+        try {
             Map<String, Object> body = Map.of(
                     "model", MODEL,
-                    "max_tokens", 700,
+                    "max_tokens", maxTokens,
                     "system", systemPrompt,
                     "messages", messages);
 

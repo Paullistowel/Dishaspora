@@ -60,11 +60,22 @@ public class OrderService {
             throw ApiException.badRequest("All items in an order must be from the same vendor (one order per vendor)");
         }
 
-        // Same-country enforcement.
-        for (Listing listing : listings) {
+        // Same-country + stock enforcement.
+        for (int i = 0; i < listings.size(); i++) {
+            Listing listing = listings.get(i);
+            CreateOrderItem item = request.items().get(i);
             if (!listing.getCountry().equalsIgnoreCase(user.getCountry())) {
                 throw ApiException.badRequest(
                         "Listing '" + listing.getTitle() + "' is not available in your country");
+            }
+            if (!listing.isAvailable()) {
+                throw ApiException.badRequest("'" + listing.getTitle() + "' is currently unavailable.");
+            }
+            // stockQty <= 0 means the vendor doesn't track stock for this item (unlimited).
+            if (listing.getStockQty() > 0 && item.qty() > listing.getStockQty()) {
+                throw ApiException.badRequest(
+                        "Only " + listing.getStockQty() + " of '" + listing.getTitle()
+                                + "' left in stock.");
             }
         }
 
@@ -109,6 +120,7 @@ public class OrderService {
             }
             order.setStatus(OrderStatus.PAID);
             order = orderRepository.save(order);
+            decrementStock(order);
         }
         return toDto(order);
     }
@@ -151,6 +163,20 @@ public class OrderService {
     public OrderDto toDto(Order order) {
         Vendor vendor = vendorRepository.findById(order.getVendorId()).orElse(null);
         return OrderDto.from(order, vendor);
+    }
+
+    /** After payment, draw down tracked stock (stockQty > 0) so listings can sell out. */
+    private void decrementStock(Order order) {
+        for (OrderItem item : order.getItems()) {
+            listingRepository.findById(item.getListingId()).ifPresent(listing -> {
+                if (listing.getStockQty() > 0) {
+                    int remaining = Math.max(0, listing.getStockQty() - item.getQty());
+                    listing.setStockQty(remaining);
+                    if (remaining == 0) listing.setAvailable(false);
+                    listingRepository.save(listing);
+                }
+            });
+        }
     }
 
     private Order findOwned(Long id, User user) {

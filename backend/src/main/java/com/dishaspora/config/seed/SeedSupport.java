@@ -90,6 +90,7 @@ public class SeedSupport {
         u.setRole(role);
         u.setCountry(country);
         u.setAvatarUrl("/images/avatar-" + avatarIdx + ".png");
+        u.setEmailVerified(true); // seeded demo accounts are pre-verified
         if (premium) {
             u.setPremium(true);
             u.setPremiumUntil(java.time.Instant.now().plus(365, java.time.temporal.ChronoUnit.DAYS));

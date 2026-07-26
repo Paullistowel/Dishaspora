@@ -23,17 +23,31 @@ public class PaystackClient {
 
     private final String secretKey;
     private final String publicKey;
+    private final boolean allowMock;
+    private final String callbackUrl;
     private final RestClient restClient;
 
     public PaystackClient(@Value("${paystack.secret-key:}") String secretKey,
-                          @Value("${paystack.public-key:}") String publicKey) {
+                          @Value("${paystack.public-key:}") String publicKey,
+                          @Value("${paystack.allow-mock:true}") boolean allowMock,
+                          @Value("${app.base-url:http://localhost:8080}") String baseUrl) {
         this.secretKey = secretKey == null ? "" : secretKey.trim();
         this.publicKey = publicKey == null ? "" : publicKey.trim();
+        this.allowMock = allowMock;
+        this.callbackUrl = baseUrl.replaceAll("/+$", "") + "/api/payments/callback";
         this.restClient = RestClient.builder().baseUrl(BASE_URL).build();
     }
 
     public boolean isMockMode() {
         return secretKey.isBlank();
+    }
+
+    /** Guards against silently auto-approving payments when no key is set in production. */
+    private void assertUsable() {
+        if (isMockMode() && !allowMock) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Payments are not available: no Paystack key is configured on the server.");
+        }
     }
 
     public String publicKey() {
@@ -45,6 +59,7 @@ public class PaystackClient {
      */
     @SuppressWarnings("unchecked")
     public PaystackInitDto initialize(String email, long amountMinor, String currency, String reference) {
+        assertUsable();
         if (isMockMode()) {
             return new PaystackInitDto(
                     "https://checkout.paystack.com/mock/" + reference,
@@ -55,7 +70,8 @@ public class PaystackClient {
                     "email", email,
                     "amount", amountMinor,
                     "currency", currency,
-                    "reference", reference);
+                    "reference", reference,
+                    "callback_url", callbackUrl);
             Map<String, Object> response = restClient.post()
                     .uri("/transaction/initialize")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + secretKey)
@@ -83,6 +99,7 @@ public class PaystackClient {
      */
     @SuppressWarnings("unchecked")
     public boolean verify(String reference) {
+        assertUsable();
         if (isMockMode()) {
             return true;
         }

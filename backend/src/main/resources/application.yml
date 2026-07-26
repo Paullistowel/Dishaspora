@@ -1,13 +1,13 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   application:
     name: dishaspora-backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/dishaspora
-    username: postgres
-    password: postgres
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/dishaspora}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -28,12 +28,39 @@ jwt:
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:}
   public-key: ${PAYSTACK_PUBLIC_KEY:}
+  # Live payments only by default: with no secret key the client refuses to
+  # process payments (rather than mock-approving them). Set PAYSTACK_ALLOW_MOCK=true
+  # ONLY for a local demo without Paystack credentials.
+  allow-mock: ${PAYSTACK_ALLOW_MOCK:false}
 
 anthropic:
   api-key: ${ANTHROPIC_API_KEY:}
 
+openai:
+  api-key: ${OPENAI_API_KEY:}
+
+# AI provider for Snap & Cook + the assistant: "openai", "anthropic", or "auto"
+# (default) which prefers whichever key is set (OpenAI first).
+ai:
+  provider: ${AI_PROVIDER:auto}
+
 media:
   upload-dir: ./uploads
+
+# Public base URL used to build links in verification / reset emails.
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  mail:
+    from: ${MAIL_FROM:Dishaspora <no-reply@dishaspora.app>}
+
+auth:
+  # Set AUTH_REQUIRE_VERIFIED_EMAIL=true once SMTP is configured to block
+  # unverified users at login. Left false so seeded/demo accounts keep working.
+  require-verified-email: ${AUTH_REQUIRE_VERIFIED_EMAIL:false}
+
+# NOTE: SMTP is intentionally NOT declared here. Set SPRING_MAIL_HOST (+ PORT,
+# USERNAME, PASSWORD) in the environment to enable real email; when unset, no
+# JavaMailSender bean is created and EmailService logs messages instead.
 
 ---
 spring:

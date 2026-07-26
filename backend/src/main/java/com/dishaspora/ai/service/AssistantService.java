@@ -28,16 +28,16 @@ public class AssistantService {
     private static final Pattern RECIPE_IDS_LINE =
             Pattern.compile("^\\s*RECIPE_IDS:\\s*([0-9,\\s]*)\\s*$", Pattern.MULTILINE);
 
-    private final ClaudeClient claudeClient;
+    private final AiClient aiClient;
     private final SmartSearchService smartSearchService;
     private final RecipeRepository recipeRepository;
     private final RecipeMapper recipeMapper;
 
-    public AssistantService(ClaudeClient claudeClient,
+    public AssistantService(AiClient aiClient,
                             SmartSearchService smartSearchService,
                             RecipeRepository recipeRepository,
                             RecipeMapper recipeMapper) {
-        this.claudeClient = claudeClient;
+        this.aiClient = aiClient;
         this.smartSearchService = smartSearchService;
         this.recipeRepository = recipeRepository;
         this.recipeMapper = recipeMapper;
@@ -48,7 +48,7 @@ public class AssistantService {
             throw new PremiumRequiredException(
                     "Ask Dishaspora is a premium feature. Subscribe to Premium to chat with the assistant.");
         }
-        if (claudeClient.isConfigured()) {
+        if (aiClient.isConfigured()) {
             AssistantReply reply = claudeChat(request, user);
             if (reply != null) return reply;
         }
@@ -80,12 +80,12 @@ public class AssistantService {
                 answer. If none are relevant, end with "RECIPE_IDS:" and nothing after the colon.
                 """.formatted(buildCatalog());
 
-        List<ClaudeClient.Turn> history = request.history() == null ? List.of()
+        List<AiClient.Turn> history = request.history() == null ? List.of()
                 : request.history().stream()
-                        .map(t -> new ClaudeClient.Turn(t.role(), t.content()))
+                        .map(t -> new AiClient.Turn(t.role(), t.content()))
                         .toList();
 
-        String raw = claudeClient.chat(systemPrompt, history, request.message());
+        String raw = aiClient.chat(systemPrompt, history, request.message());
         if (raw == null) return null;
 
         List<Long> ids = new ArrayList<>();
