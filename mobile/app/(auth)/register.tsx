@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,49 +15,70 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ChoiceChip from '@/components/ChoiceChip';
 import Flag from '@/components/Flag';
 import Input from '@/components/Input';
+import FieldError from '@/components/FieldError';
+import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import PrimaryButton from '@/components/PrimaryButton';
 import TwoToneTitle from '@/components/TwoToneTitle';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { colors, shadow } from '@/theme';
 import { ApiError } from '@/api';
+import { isValidEmail, meetsPasswordPolicy } from '@/validation';
 import type { Country } from '@/types';
+
+interface FieldErrors {
+  name?: string;
+  email?: string;
+  password?: string;
+  confirm?: string;
+}
 
 export default function Register() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [country, setCountry] = useState<Country>('GH');
   const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+
+  const validate = (): FieldErrors => {
+    const next: FieldErrors = {};
+    if (!name.trim()) next.name = 'Enter your full name.';
+    if (!email.trim()) next.email = 'Enter your email address.';
+    else if (!isValidEmail(email)) next.email = 'Enter a valid email address.';
+    if (!password) next.password = 'Choose a password.';
+    else if (!meetsPasswordPolicy(password))
+      next.password = 'Use 8+ characters with upper, lower and a number.';
+    if (!confirm) next.confirm = 'Re-enter your password.';
+    else if (confirm !== password) next.confirm = 'Passwords do not match.';
+    return next;
+  };
 
   const submit = async () => {
-    if (!name.trim() || !email.trim()) {
-      Alert.alert('Missing details', 'Fill in your name and email.');
-      return;
-    }
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
-      Alert.alert(
-        'Weak password',
-        'Use at least 8 characters with an uppercase letter, a lowercase letter and a number.'
-      );
-      return;
-    }
+    const found = validate();
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
+
     setBusy(true);
     try {
       await register(name.trim(), email.trim(), password, country);
+      toast.success('Account created — welcome to Dishaspora!');
       // New users go through onboarding, then into the app.
       router.replace('/onboarding');
     } catch (e) {
-      Alert.alert(
-        'Registration failed',
-        e instanceof ApiError
-          ? e.status === 409
-            ? 'That email is already registered.'
-            : e.message
-          : 'Something went wrong.'
-      );
+      if (e instanceof ApiError && e.status === 409) {
+        setErrors({ email: 'That email is already registered.' });
+        toast.error('That email is already registered.');
+      } else {
+        toast.error(
+          e instanceof ApiError ? e.message : 'Something went wrong. Please try again.'
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -86,22 +106,61 @@ export default function Register() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.form}>
-          <Input icon="person-outline" placeholder="Full name" value={name} onChangeText={setName} />
+          <Input
+            icon="person-outline"
+            placeholder="Full name"
+            value={name}
+            onChangeText={(t) => {
+              setName(t);
+              if (errors.name) setErrors((e) => ({ ...e, name: undefined }));
+            }}
+            autoCapitalize="words"
+            textContentType="name"
+            returnKeyType="next"
+          />
+          <FieldError message={errors.name} />
           <Input
             icon="mail-outline"
             placeholder="Email address"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(t) => {
+              setEmail(t);
+              if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+            }}
             autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
             keyboardType="email-address"
+            returnKeyType="next"
           />
+          <FieldError message={errors.email} />
           <Input
             icon="lock-closed-outline"
             placeholder="Password (8+ chars, mixed case & a number)"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(t) => {
+              setPassword(t);
+              if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
+            }}
             secureTextEntry
+            textContentType="newPassword"
           />
+          <PasswordStrengthMeter password={password} />
+          <FieldError message={errors.password} />
+          <Input
+            icon="lock-closed-outline"
+            placeholder="Confirm password"
+            value={confirm}
+            onChangeText={(t) => {
+              setConfirm(t);
+              if (errors.confirm) setErrors((e) => ({ ...e, confirm: undefined }));
+            }}
+            secureTextEntry
+            textContentType="newPassword"
+            returnKeyType="done"
+            onSubmitEditing={submit}
+          />
+          <FieldError message={errors.confirm} />
           <Text style={styles.label}>Where are you shopping from?</Text>
           <View style={styles.chips}>
             <ChoiceChip

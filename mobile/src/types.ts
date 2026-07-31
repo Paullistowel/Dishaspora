@@ -239,7 +239,57 @@ export interface Basket {
 
 export interface AuthResponse {
   token: string;
+  /** Long-lived rotation token; present once the backend issues refresh tokens. */
+  refreshToken?: string;
   user: User;
+}
+
+// --- Notifications (Phase 5) ---
+export type NotificationType =
+  | 'MEAL_UPDATE'
+  | 'ORDER_UPDATE'
+  | 'RECOMMENDATION'
+  | 'SECURITY'
+  | 'ANNOUNCEMENT'
+  | 'PROMOTION';
+
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  body: string;
+  /** Optional in-app route to open on tap, e.g. "/orders". */
+  deepLink: string | null;
+  imageUrl: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface UnreadCount {
+  unread: number;
+}
+
+// --- Feedback (Phase 8) ---
+export type FeedbackType = 'BUG' | 'FEATURE' | 'GENERAL' | 'RATING';
+export type FeedbackStatus = 'NEW' | 'IN_REVIEW' | 'RESOLVED';
+
+export interface Feedback {
+  id: number;
+  type: FeedbackType;
+  message: string;
+  rating: number | null;
+  screenshotUrl: string | null;
+  status: FeedbackStatus;
+  createdAt: string;
+}
+
+export interface CreateFeedbackRequest {
+  type: FeedbackType;
+  message: string;
+  rating?: number | null;
+  screenshotUrl?: string | null;
+  deviceInfo?: string | null;
+  appVersion?: string | null;
 }
 
 export interface CookedResponse {

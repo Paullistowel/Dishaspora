@@ -19,9 +19,14 @@ public class JwtService {
     private final long expirationMs;
 
     public JwtService(@Value("${jwt.secret}") String secret,
-                      @Value("${jwt.expiration-ms:604800000}") long expirationMs) {
+                      @Value("${jwt.expiration-ms:1800000}") long expirationMs) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
+    }
+
+    /** Access-token lifetime in ms (short-lived; paired with a refresh token). */
+    public long getExpirationMs() {
+        return expirationMs;
     }
 
     public String generateToken(User user) {

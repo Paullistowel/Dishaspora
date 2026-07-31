@@ -22,7 +22,11 @@ public final class AuthDtos {
             @NotBlank @Email String email,
             @NotBlank String password) {}
 
-    public record AuthResponse(String token, UserDto user) {}
+    public record AuthResponse(String token, String refreshToken, UserDto user) {}
+
+    public record RefreshRequest(@NotBlank String refreshToken) {}
+
+    public record LogoutRequest(@NotBlank String refreshToken) {}
 
     public record UpdateMeRequest(String name, String avatarUrl,
             @Pattern(regexp = "GH|NG", message = "must be GH or NG") String country) {}

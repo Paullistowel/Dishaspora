@@ -3,7 +3,9 @@ package com.dishaspora.auth.controller;
 import com.dishaspora.auth.dto.AuthDtos.AuthResponse;
 import com.dishaspora.auth.dto.AuthDtos.ForgotPasswordRequest;
 import com.dishaspora.auth.dto.AuthDtos.LoginRequest;
+import com.dishaspora.auth.dto.AuthDtos.LogoutRequest;
 import com.dishaspora.auth.dto.AuthDtos.MessageResponse;
+import com.dishaspora.auth.dto.AuthDtos.RefreshRequest;
 import com.dishaspora.auth.dto.AuthDtos.RegisterRequest;
 import com.dishaspora.auth.dto.AuthDtos.ResendVerificationRequest;
 import com.dishaspora.auth.dto.AuthDtos.ResetPasswordRequest;
@@ -37,6 +39,19 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    /** Exchange a refresh token for a fresh access + refresh pair (token rotation). */
+    @PostMapping("/refresh")
+    public AuthResponse refresh(@Valid @RequestBody RefreshRequest request) {
+        return authService.refresh(request.refreshToken());
+    }
+
+    /** Revoke the given refresh token (sign-out on this device). */
+    @PostMapping("/logout")
+    public MessageResponse logout(@Valid @RequestBody LogoutRequest request) {
+        authService.logout(request.refreshToken());
+        return new MessageResponse("Signed out.");
     }
 
     @PostMapping("/forgot-password")

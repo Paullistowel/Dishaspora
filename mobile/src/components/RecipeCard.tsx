@@ -4,6 +4,8 @@ import PressableScale from './PressableScale';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../api';
 import { IMG } from '../config';
 import { colors, shadow } from '../theme';
 import type { Recipe } from '../types';
@@ -13,7 +15,7 @@ import Avatar from './Avatar';
  * 2-col grid recipe card (ref pattern #2): rounded image, bottom overlay row =
  * vendor chip (logo circle + name on dark translucent pill) + circular orange arrow.
  */
-export default function RecipeCard({
+function RecipeCard({
   recipe,
   style,
   showMeta = true,
@@ -23,8 +25,16 @@ export default function RecipeCard({
   showMeta?: boolean;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const totalMin = recipe.prepMinutes + recipe.cookMinutes;
-  const open = () => router.push({ pathname: '/recipe/[id]', params: { id: String(recipe.id) } });
+  const open = () => {
+    // Warm the detail query so the recipe screen paints instantly on arrival.
+    queryClient.prefetchQuery({
+      queryKey: ['recipe', recipe.id],
+      queryFn: () => api.get<Recipe>(`/recipes/${recipe.id}`),
+    });
+    router.push({ pathname: '/recipe/[id]', params: { id: String(recipe.id) } });
+  };
 
   return (
     <PressableScale
@@ -73,6 +83,10 @@ export default function RecipeCard({
     </PressableScale>
   );
 }
+
+// Memoized: recipe cards populate long grids/carousels; skip re-renders when the
+// recipe/style/showMeta props are unchanged.
+export default React.memo(RecipeCard);
 
 const styles = StyleSheet.create({
   card: { flex: 1 },

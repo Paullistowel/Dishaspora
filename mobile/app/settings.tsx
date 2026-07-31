@@ -1,219 +1,117 @@
-import React, { useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Input from '@/components/Input';
-import PressableScale from '@/components/PressableScale';
-import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
-import { api, ApiError } from '@/api';
+import SettingsRow from '@/components/SettingsRow';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { colors, radius, shadow } from '@/theme';
+import { useUnreadCount } from '@/hooks/useNotifications';
+import { appVersion } from '@/device';
+import { colors, radius, shadow, spacing, type } from '@/theme';
 
-// Mirror of the backend rule so we fail fast with a clear message.
-const STRONG_PW = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,100}$/;
-
+/**
+ * Settings hub (Phase 10). Groups every account/preference/support destination in
+ * one place. Security actions (password, email, delete) live on the dedicated
+ * Security screen; theme/language are surfaced as "coming soon" while the app is
+ * light-only and English-only (the token system is dark-ready for later).
+ */
 export default function Settings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const toast = useToast();
+  const { data: unread = 0 } = useUnreadCount();
 
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [delPassword, setDelPassword] = useState('');
+  const confirmLogout = () =>
+    Alert.alert('Log out', 'Sign out of Dishaspora?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/(auth)/login');
+        },
+      },
+    ]);
 
-  const changePw = useMutation({
-    mutationFn: () =>
-      api.post<{ message: string }>('/users/me/change-password', {
-        currentPassword: current,
-        newPassword: next,
-      }),
-    onSuccess: (r) => {
-      setCurrent('');
-      setNext('');
-      setConfirm('');
-      toast.success(r.message ?? 'Password updated.');
-    },
-    onError: (e) =>
-      toast.error(e instanceof ApiError ? e.message : 'Could not change password.'),
-  });
-
-  const deleteAccount = useMutation({
-    mutationFn: () => api.del<{ message: string }>('/users/me', { password: delPassword }),
-    onSuccess: async () => {
-      await logout();
-      toast.info('Your account has been deleted.');
-      router.replace('/(auth)/login');
-    },
-    onError: (e) =>
-      toast.error(e instanceof ApiError ? e.message : 'Could not delete account.'),
-  });
-
-  const submitPassword = () => {
-    if (!current || !next || !confirm) {
-      toast.error('Fill in all password fields.');
-      return;
-    }
-    if (!STRONG_PW.test(next)) {
-      toast.error('New password needs 8+ chars with upper, lower and a number.');
-      return;
-    }
-    if (next !== confirm) {
-      toast.error('New passwords do not match.');
-      return;
-    }
-    changePw.mutate();
-  };
-
-  const confirmDelete = () => {
-    if (!delPassword) {
-      toast.error('Enter your password to delete your account.');
-      return;
-    }
-    Alert.alert(
-      'Delete account?',
-      'This permanently disables your account and signs you out. Your order history is kept for records but you will lose access. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteAccount.mutate() },
-      ]
-    );
-  };
+  const comingSoon = (what: string) => toast.info(`${what} is coming soon.`);
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Settings & security" />
-        <ScrollView
-          contentContainerStyle={{ padding: 20, gap: 22, paddingBottom: 48 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Change password */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Change password</Text>
-            <Text style={styles.hint}>
-              Signed in as {user?.email}. Use at least 8 characters with an uppercase letter,
-              a lowercase letter and a number.
-            </Text>
-            <Input
-              icon="lock-closed-outline"
-              placeholder="Current password"
-              value={current}
-              onChangeText={setCurrent}
-              secureTextEntry
-            />
-            <Input
-              icon="key-outline"
-              placeholder="New password"
-              value={next}
-              onChangeText={setNext}
-              secureTextEntry
-            />
-            <Input
-              icon="checkmark-done-outline"
-              placeholder="Confirm new password"
-              value={confirm}
-              onChangeText={setConfirm}
-              secureTextEntry
-            />
-            <PrimaryButton
-              title="Update password"
-              loading={changePw.isPending}
-              onPress={submitPassword}
-              style={{ marginTop: 4 }}
-            />
-          </View>
+    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
+      <ScreenHeader title="Settings" />
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xxxl, gap: spacing.xl }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Section title="Account">
+          <SettingsRow icon="person-outline" label="Edit profile" onPress={() => router.push('/edit-profile')} />
+          <SettingsRow
+            icon="notifications-outline"
+            label="Notifications"
+            badge={unread}
+            onPress={() => router.push('/notifications')}
+          />
+          <SettingsRow
+            icon="shield-checkmark-outline"
+            label="Security"
+            value={user?.emailVerified ? undefined : 'Verify email'}
+            onPress={() => router.push('/security')}
+            last
+          />
+        </Section>
 
-          {/* Change email */}
-          <PressableScale
-            onPress={() => router.push('/change-email')}
-            scaleTo={0.98}
-            accessibilityLabel="Change email address"
-          >
-            <View style={styles.linkRow}>
-              <View style={styles.linkIcon}>
-                <Ionicons name="mail-outline" size={18} color={colors.brandDark} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.linkTitle}>Change email</Text>
-                <Text style={styles.linkSub}>{user?.email}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
-            </View>
-          </PressableScale>
+        <Section title="Preferences">
+          <SettingsRow icon="color-palette-outline" label="Theme" value="Light" onPress={() => comingSoon('Dark mode')} />
+          <SettingsRow icon="language-outline" label="Language" value="English" onPress={() => comingSoon('More languages')} last />
+        </Section>
 
-          {/* Danger zone */}
-          <View style={[styles.card, styles.danger]}>
-            <Text style={[styles.cardTitle, { color: colors.danger }]}>Delete account</Text>
-            <Text style={styles.hint}>
-              Permanently disable your account. This can't be undone — confirm with your password.
-            </Text>
-            <Input
-              icon="lock-closed-outline"
-              placeholder="Your password"
-              value={delPassword}
-              onChangeText={setDelPassword}
-              secureTextEntry
-            />
-            <PrimaryButton
-              title="Delete my account"
-              variant="danger"
-              loading={deleteAccount.isPending}
-              onPress={confirmDelete}
-              style={{ marginTop: 4 }}
-            />
-          </View>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+        <Section title="Support">
+          <SettingsRow icon="help-circle-outline" label="Help & Support" onPress={() => router.push('/help')} />
+          <SettingsRow icon="chatbox-ellipses-outline" label="Send feedback" onPress={() => router.push('/feedback')} />
+          <SettingsRow icon="information-circle-outline" label="About Dishaspora" value={`v${appVersion()}`} onPress={() => router.push('/about')} last />
+        </Section>
+
+        <View style={styles.card}>
+          <SettingsRow icon="log-out-outline" label="Log out" danger onPress={confirmLogout} last />
+        </View>
+
+        <Text style={styles.footer}>Dishaspora · v{appVersion()}</Text>
+      </ScrollView>
+    </View>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.card}>{children}</View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sectionTitle: {
+    fontSize: type.size.sm,
+    fontWeight: type.weight.bold,
+    color: colors.inkFaint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: radius.lg,
-    padding: 18,
-    gap: 12,
+    paddingHorizontal: spacing.lg,
     ...shadow,
   },
-  danger: { borderWidth: 1, borderColor: '#F6D5D5' },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: colors.ink },
-  hint: { fontSize: 13, color: colors.inkSoft, lineHeight: 19 },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: radius.lg,
-    padding: 16,
-    ...shadow,
+  footer: {
+    textAlign: 'center',
+    color: colors.inkFaint,
+    fontSize: type.size.xs,
+    marginTop: spacing.sm,
   },
-  linkIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  linkTitle: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
-  linkSub: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
 });

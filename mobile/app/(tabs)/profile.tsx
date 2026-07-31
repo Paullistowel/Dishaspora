@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/Skeleton';
 import StampCard from '@/components/StampCard';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
+import { useUnreadCount } from '@/hooks/useNotifications';
 import { colors, shadow } from '@/theme';
 import type { Passport, Recipe } from '@/types';
 
@@ -44,12 +45,15 @@ function Row({
   icon,
   label,
   value,
+  badge,
   onPress,
   danger,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value?: string;
+  /** Optional unread-count pill shown before the chevron. */
+  badge?: number;
   onPress?: () => void;
   danger?: boolean;
 }) {
@@ -58,7 +62,9 @@ function Row({
       onPress={onPress}
       scaleTo={0.98}
       accessibilityRole="button"
-      accessibilityLabel={value ? `${label}, ${value}` : label}
+      accessibilityLabel={
+        badge ? `${label}, ${badge} unread` : value ? `${label}, ${value}` : label
+      }
     >
       <View style={styles.row}>
         <View style={[styles.rowIcon, danger && { backgroundColor: '#FDECEC' }]}>
@@ -66,6 +72,11 @@ function Row({
         </View>
         <Text style={[styles.rowLabel, danger && { color: colors.danger }]}>{label}</Text>
         {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+        {badge ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+          </View>
+        ) : null}
         <Ionicons name="chevron-forward" size={16} color={colors.inkFaint} />
       </View>
     </PressableScale>
@@ -78,6 +89,7 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
   const [segment, setSegment] = useState('My recipes');
+  const { data: unread = 0 } = useUnreadCount();
 
   const passport = useQuery({
     queryKey: ['passport'],
@@ -198,6 +210,12 @@ export default function Profile() {
       ) : (
         <View style={styles.body}>
           <Animated.View entering={FadeInDown.duration(320)} style={styles.rowsCard}>
+            <Row
+              icon="notifications-outline"
+              label="Notifications"
+              badge={unread}
+              onPress={() => router.push('/notifications')}
+            />
             <Row icon="receipt-outline" label="My orders" onPress={() => router.push('/orders')} />
             <Row
               icon="chatbubbles-outline"
@@ -238,8 +256,8 @@ export default function Profile() {
               onPress={() => router.push('/edit-profile')}
             />
             <Row
-              icon="shield-checkmark-outline"
-              label="Settings & security"
+              icon="settings-outline"
+              label="Settings"
               onPress={() => router.push('/settings')}
             />
             <Row icon="log-out-outline" label="Log out" danger onPress={confirmLogout} />
@@ -321,4 +339,14 @@ const styles = StyleSheet.create({
   },
   rowLabel: { flex: 1, fontSize: 14.5, fontWeight: '500', color: colors.ink },
   rowValue: { fontSize: 13, color: colors.inkSoft },
+  badge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
 });

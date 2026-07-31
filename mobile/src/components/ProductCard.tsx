@@ -15,7 +15,7 @@ import PrimaryButton from './PrimaryButton';
  * Product card (ref pattern #2, product variant): image with vendor chip + orange
  * arrow overlay, title, subtitle, price + strikethrough, orange "Buy now" pill.
  */
-export default function ProductCard({
+function ProductCard({
   listing,
   style,
   hideVendor,
@@ -89,6 +89,10 @@ export default function ProductCard({
     </View>
   );
 }
+
+// Memoized: cards are rendered in long lists and re-render only when their
+// listing/style/hideVendor props actually change.
+export default React.memo(ProductCard);
 
 const styles = StyleSheet.create({
   card: { flex: 1 },

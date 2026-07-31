@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +20,7 @@ import SegmentChips from '@/components/SegmentChips';
 import { SkeletonGrid } from '@/components/Skeleton';
 import { ErrorView, LoadingView } from '@/components/StatusViews';
 import { IMG } from '@/config';
+import { useStartChat } from '@/hooks/useChat';
 import { colors, shadow } from '@/theme';
 import type { Listing, Review, Vendor } from '@/types';
 
@@ -31,6 +31,7 @@ export default function VendorStorefront() {
   const vendorId = Number(id);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const startChat = useStartChat();
   const [segment, setSegment] = useState('All Items');
   const [showReviews, setShowReviews] = useState(false);
 
@@ -54,21 +55,7 @@ export default function VendorStorefront() {
     return all;
   }, [listings.data, segment]);
 
-  const openChat = async () => {
-    try {
-      const thread = await api.post<{ id: number }>('/chat/threads', { vendorId });
-      router.push({ pathname: '/chat/[id]', params: { id: String(thread.id) } });
-    } catch (e: any) {
-      if (e?.premiumRequired) {
-        Alert.alert('Premium feature', 'Chatting with vendors is a Premium feature.', [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Go Premium', onPress: () => router.push('/subscription') },
-        ]);
-      } else {
-        Alert.alert('Chat unavailable', 'Could not open the chat right now.');
-      }
-    }
-  };
+  const openChat = () => startChat(vendorId);
 
   if (vendor.isLoading) return <LoadingView />;
   if (vendor.isError || !vendor.data)

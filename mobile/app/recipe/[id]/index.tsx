@@ -36,6 +36,7 @@ import TwoToneTitle from '@/components/TwoToneTitle';
 import Input from '@/components/Input';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
+import { useStartChat } from '@/hooks/useChat';
 import { colors, shadow, shadowStrong } from '@/theme';
 import type { Listing, Page, Recipe, Review } from '@/types';
 import { MAX_SERVINGS, MIN_SERVINGS, scaleRecipe } from '@/utils/scaling';
@@ -49,6 +50,7 @@ export default function RecipeDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const startChat = useStartChat();
   const queryClient = useQueryClient();
   const [basketOpen, setBasketOpen] = useState(false);
   const [checked, setChecked] = useState<Record<number, boolean>>({});
@@ -167,21 +169,8 @@ export default function RecipeDetail() {
       Alert.alert('Could not open YouTube', 'Try searching for this dish manually.');
     }
   };
-  const contactVendor = async () => {
-    if (!rec.vendorId) return;
-    try {
-      const thread = await api.post<{ id: number }>('/chat/threads', { vendorId: rec.vendorId });
-      router.push({ pathname: '/chat/[id]', params: { id: String(thread.id) } });
-    } catch (e: any) {
-      if (e?.premiumRequired) {
-        Alert.alert('Premium feature', 'Chatting with vendors is a Premium feature.', [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Go Premium', onPress: () => router.push('/subscription') },
-        ]);
-      } else {
-        Alert.alert('Chat unavailable', 'Could not open the chat right now.');
-      }
-    }
+  const contactVendor = () => {
+    if (rec.vendorId) startChat(rec.vendorId);
   };
 
   return (

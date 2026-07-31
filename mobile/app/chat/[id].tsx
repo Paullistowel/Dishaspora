@@ -11,14 +11,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api';
+import { useChatThreads } from '@/hooks/useChat';
 import ScreenHeader from '@/components/ScreenHeader';
 import { useToast } from '@/context/ToastContext';
 import { colors } from '@/theme';
-import type { ChatMessage, ChatThread } from '@/types';
+import type { ChatMessage } from '@/types';
 
 export default function ChatThreadScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,10 +32,7 @@ export default function ChatThreadScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const lastIdRef = useRef(0);
 
-  const threads = useQuery({
-    queryKey: ['chat-threads'],
-    queryFn: () => api.get<ChatThread[]>('/chat/threads'),
-  });
+  const threads = useChatThreads();
   const thread = useMemo(
     () => (threads.data ?? []).find((t) => t.id === threadId),
     [threads.data, threadId]

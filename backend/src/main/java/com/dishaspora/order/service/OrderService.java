@@ -36,15 +36,18 @@ public class OrderService {
     private final ListingRepository listingRepository;
     private final VendorRepository vendorRepository;
     private final PaystackClient paystackClient;
+    private final com.dishaspora.notification.service.NotificationService notificationService;
 
     public OrderService(OrderRepository orderRepository,
                         ListingRepository listingRepository,
                         VendorRepository vendorRepository,
-                        PaystackClient paystackClient) {
+                        PaystackClient paystackClient,
+                        com.dishaspora.notification.service.NotificationService notificationService) {
         this.orderRepository = orderRepository;
         this.listingRepository = listingRepository;
         this.vendorRepository = vendorRepository;
         this.paystackClient = paystackClient;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -157,7 +160,25 @@ public class OrderService {
             throw ApiException.badRequest("Invalid order status: " + status);
         }
         order.setStatus(newStatus);
-        return toDto(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+        // Notify the buyer that their order moved to a new status.
+        notificationService.notify(saved.getUserId(),
+                com.dishaspora.common.enums.Enums.NotificationType.ORDER_UPDATE,
+                "Order " + statusLabel(newStatus),
+                "Your order " + saved.getReference() + " is now " + statusLabel(newStatus) + ".",
+                "/orders");
+        return toDto(saved);
+    }
+
+    private static String statusLabel(OrderStatus status) {
+        return switch (status) {
+            case PENDING_PAYMENT -> "awaiting payment";
+            case PAID -> "paid";
+            case PREPARING -> "being prepared";
+            case READY -> "ready";
+            case COMPLETED -> "completed";
+            case CANCELLED -> "cancelled";
+        };
     }
 
     public OrderDto toDto(Order order) {

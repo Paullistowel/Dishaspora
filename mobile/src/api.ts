@@ -17,21 +17,68 @@ export class ApiError extends Error {
 }
 
 let authToken: string | null = null;
+let refreshToken: string | null = null;
 
 export function setToken(token: string | null) {
   authToken = token;
+}
+
+export function setRefreshToken(token: string | null) {
+  refreshToken = token;
 }
 
 export function getToken(): string | null {
   return authToken;
 }
 
-// Session-expiry hook: when an authenticated request comes back 401, the token
-// is no longer valid (expired, revoked, or the account was deleted). AuthContext
-// registers a handler here to log the user out and bounce them to sign-in.
+// Session-expiry hook: when an authenticated request comes back 401 AND the token
+// cannot be silently refreshed, the session is dead (refresh expired/revoked, or
+// the account was deleted). AuthContext registers a handler here to log the user
+// out and bounce them to sign-in.
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
+}
+
+// When the access token is silently refreshed, AuthContext persists the rotated
+// pair to secure storage and updates its state.
+let onTokensRefreshed: ((token: string, refreshToken: string) => void) | null = null;
+export function setTokensRefreshedHandler(
+  fn: ((token: string, refreshToken: string) => void) | null
+) {
+  onTokensRefreshed = fn;
+}
+
+// Single-flight refresh: many requests can 401 at once when the access token
+// expires; they all await one in-flight refresh rather than stampeding the
+// endpoint. Resolves true if a fresh access token is now in place.
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (!refreshToken) return false;
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return false;
+        const json = await res.json();
+        if (!json?.token || !json?.refreshToken) return false;
+        authToken = json.token;
+        refreshToken = json.refreshToken;
+        onTokensRefreshed?.(json.token, json.refreshToken);
+        return true;
+      } catch {
+        return false;
+      }
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }
 
 type Query = Record<string, string | number | boolean | null | undefined>;
@@ -54,7 +101,8 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
-  params?: Query
+  params?: Query,
+  isRetry = false
 ): Promise<T> {
   if (DEMO_MODE) {
     return demoResolve<T>(method, path, body, params);
@@ -97,6 +145,19 @@ async function request<T>(
     clearTimeout(timer);
   }
 
+  // A 401 on a request we sent WITH a token means the access token expired or was
+  // revoked. Try a one-time silent refresh, then replay the original request. Only
+  // if refresh fails do we treat the session as dead. (Login/register carry no
+  // token, so their "invalid credentials" 401s skip this entirely. FormData bodies
+  // aren't replayed — an upload that 401s just surfaces after a refresh attempt.)
+  if (res.status === 401 && hadToken && !isRetry) {
+    const refreshed = await tryRefresh();
+    if (refreshed && !(body instanceof FormData)) {
+      return request<T>(method, path, body, params, true);
+    }
+    if (!refreshed) onUnauthorized?.();
+  }
+
   const text = await res.text();
   let json: any = null;
   if (text) {
@@ -110,10 +171,6 @@ async function request<T>(
   if (!res.ok) {
     const message =
       (json && (json.message || json.error)) || `Request failed (${res.status})`;
-    // A 401 on a request we sent WITH a token means the session died mid-use —
-    // trigger a global logout. (Login/register are called without a token, so
-    // their "invalid credentials" 401s never reach this branch.)
-    if (res.status === 401 && hadToken) onUnauthorized?.();
     throw new ApiError(res.status, message, json?.timestamp);
   }
   return json as T;

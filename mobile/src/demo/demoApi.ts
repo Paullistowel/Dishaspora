@@ -1,6 +1,7 @@
 // In-memory demo backend implementing the docs/API.md contract so the entire
 // app is inspectable in Expo Go with zero backend running.
 import type {
+  AppNotification,
   AssistantResponse,
   AuthResponse,
   Basket,
@@ -9,6 +10,7 @@ import type {
   DaySummary,
   DayTotals,
   DetectedIngredient,
+  Feedback,
   Goals,
   IngredientScanResult,
   Listing,
@@ -66,6 +68,39 @@ const state = {
   plannedMeals: [] as PlannedMeal[],
   water: {} as Record<string, number>,
   goals: { calorieGoal: 2000, proteinGoal: 120, carbGoal: 250, fatGoal: 70, waterGoalMl: 2000 } as Goals,
+  notifications: [
+    {
+      id: 5001,
+      type: 'ORDER_UPDATE',
+      title: 'Order being prepared',
+      body: 'Your order DSP-8K2M1 is now being prepared. We’ll let you know when it’s ready.',
+      deepLink: '/orders',
+      imageUrl: null,
+      read: false,
+      createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 5002,
+      type: 'RECOMMENDATION',
+      title: 'A dish you might love',
+      body: 'Based on your saved recipes, try Jollof Rice tonight — a community favourite.',
+      deepLink: '/(tabs)/search',
+      imageUrl: null,
+      read: false,
+      createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 5003,
+      type: 'ANNOUNCEMENT',
+      title: 'Welcome to Dishaspora',
+      body: 'Explore recipes, stories and markets from home — all in one place. Happy cooking!',
+      deepLink: null,
+      imageUrl: null,
+      read: true,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ] as AppNotification[],
+  feedback: [] as Feedback[],
 };
 
 const delay = (ms = 350) => new Promise<void>((res) => setTimeout(res, ms));
@@ -888,6 +923,48 @@ export async function demoResolve<T>(
       }
     }, 2500);
     return R(msg);
+  }
+
+  // ---- notifications ----
+  if (m === 'GET' && p === '/notifications') {
+    const list = [...state.notifications].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return R({ content: list, totalElements: list.length, totalPages: 1 });
+  }
+  if (m === 'GET' && p === '/notifications/unread-count') {
+    return R({ unread: state.notifications.filter((n) => !n.read).length });
+  }
+  if (m === 'POST' && p === '/notifications/read-all') {
+    state.notifications.forEach((n) => (n.read = true));
+    return R({ message: 'All notifications marked as read.' });
+  }
+  const notifRead = p.match(/^\/notifications\/(\d+)\/read$/);
+  if (notifRead && m === 'POST') {
+    const n = state.notifications.find((x) => x.id === Number(notifRead[1]));
+    if (n) n.read = true;
+    return R({ message: 'Marked as read.' });
+  }
+  const notifDel = p.match(/^\/notifications\/(\d+)$/);
+  if (notifDel && m === 'DELETE') {
+    state.notifications = state.notifications.filter((x) => x.id !== Number(notifDel[1]));
+    return R({ message: 'Notification deleted.' });
+  }
+
+  // ---- feedback ----
+  if (m === 'POST' && p === '/feedback') {
+    const fb: Feedback = {
+      id: state.nextId++,
+      type: body?.type ?? 'GENERAL',
+      message: body?.message ?? '',
+      rating: body?.rating ?? null,
+      screenshotUrl: body?.screenshotUrl ?? null,
+      status: 'NEW',
+      createdAt: new Date().toISOString(),
+    };
+    state.feedback.unshift(fb);
+    return R(fb);
+  }
+  if (m === 'GET' && p === '/feedback/mine') {
+    return R(state.feedback);
   }
 
   // ---- media ----

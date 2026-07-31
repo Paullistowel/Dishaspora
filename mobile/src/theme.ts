@@ -19,7 +19,53 @@ export const colors = {
   star: '#FFC120',
 };
 
-export const radius = { sm: 12, md: 16, lg: 20, xl: 28 };
+export const radius = { sm: 12, md: 16, lg: 20, xl: 28, pill: 999 };
+
+/**
+ * Spacing scale (4-pt grid). Prefer these over magic numbers so vertical rhythm
+ * stays consistent across screens. e.g. `padding: spacing.lg`.
+ */
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+} as const;
+
+/**
+ * Typography scale. `size` = font size, `line` = recommended lineHeight.
+ * Weights are the string literals React Native expects.
+ */
+export const type = {
+  weight: {
+    regular: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+    heavy: '800',
+  },
+  size: {
+    xs: 11,
+    sm: 13,
+    md: 15,
+    lg: 17,
+    xl: 20,
+    xxl: 24,
+    display: 30,
+  },
+  line: {
+    xs: 16,
+    sm: 18,
+    md: 22,
+    lg: 24,
+    xl: 28,
+    xxl: 32,
+    display: 38,
+  },
+} as const;
 
 export const shadow = {
   shadowColor: '#17252A',

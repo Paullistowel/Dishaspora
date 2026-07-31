@@ -22,4 +22,15 @@ public final class Enums {
     public enum FlagTargetType { RECIPE, LISTING, VENDOR }
 
     public enum SubscriptionStatus { PENDING, ACTIVE }
+
+    /** In-app notification categories (Phase 5). */
+    public enum NotificationType {
+        MEAL_UPDATE, ORDER_UPDATE, RECOMMENDATION, SECURITY, ANNOUNCEMENT, PROMOTION
+    }
+
+    /** User feedback categories (Phase 8). */
+    public enum FeedbackType { BUG, FEATURE, GENERAL, RATING }
+
+    /** Lifecycle of a feedback submission as triaged by the team. */
+    public enum FeedbackStatus { NEW, IN_REVIEW, RESOLVED }
 }

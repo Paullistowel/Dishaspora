@@ -6,11 +6,15 @@ import com.dishaspora.auth.dto.AuthDtos.LoginRequest;
 import com.dishaspora.auth.dto.AuthDtos.RegisterRequest;
 import com.dishaspora.auth.dto.AuthDtos.UpdateMeRequest;
 import com.dishaspora.auth.dto.UserDto;
+import com.dishaspora.auth.entity.RefreshToken;
 import com.dishaspora.auth.entity.User;
+import com.dishaspora.auth.repository.RefreshTokenRepository;
 import com.dishaspora.auth.repository.UserRepository;
 import com.dishaspora.common.email.EmailService;
+import com.dishaspora.common.enums.Enums.NotificationType;
 import com.dishaspora.common.enums.Enums.Role;
 import com.dishaspora.common.exception.ApiException;
+import com.dishaspora.notification.service.NotificationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,22 +34,31 @@ public class AuthService {
     private static final Duration RESEND_COOLDOWN = Duration.ofSeconds(60);
 
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final NotificationService notificationService;
     private final String baseUrl;
     private final boolean requireVerifiedEmail;
+    private final Duration refreshTtl;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
+                       PasswordEncoder passwordEncoder,
                        JwtService jwtService, EmailService emailService,
+                       NotificationService notificationService,
                        @Value("${app.base-url:http://localhost:8080}") String baseUrl,
-                       @Value("${auth.require-verified-email:false}") boolean requireVerifiedEmail) {
+                       @Value("${auth.require-verified-email:false}") boolean requireVerifiedEmail,
+                       @Value("${jwt.refresh-expiration-ms:2592000000}") long refreshExpirationMs) {
         this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
+        this.notificationService = notificationService;
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.requireVerifiedEmail = requireVerifiedEmail;
+        this.refreshTtl = Duration.ofMillis(refreshExpirationMs);
     }
 
     @Transactional
@@ -68,7 +81,7 @@ public class AuthService {
         user.setVerificationSentAt(Instant.now());
         user = userRepository.save(user);
         sendVerificationEmail(user);
-        return new AuthResponse(jwtService.generateToken(user), UserDto.from(user));
+        return issueTokens(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -86,7 +99,53 @@ public class AuthService {
         if (requireVerifiedEmail && !user.isEmailVerified()) {
             throw ApiException.forbidden("Please verify your email address before signing in. Check your inbox.");
         }
-        return new AuthResponse(jwtService.generateToken(user), UserDto.from(user));
+        return issueTokens(user);
+    }
+
+    // --- Refresh tokens (Phase 11) ---
+
+    /**
+     * Exchange a valid refresh token for a new access token, rotating the refresh
+     * token (old one revoked, new one issued) so each token is single-use.
+     * Rejects revoked/expired tokens and deleted/banned accounts.
+     */
+    @Transactional
+    public AuthResponse refresh(String refreshToken) {
+        RefreshToken existing = refreshTokenRepository.findByToken(refreshToken)
+                .orElseThrow(() -> ApiException.unauthorized("Your session has expired. Please sign in again."));
+        if (!existing.isActive()) {
+            throw ApiException.unauthorized("Your session has expired. Please sign in again.");
+        }
+        User user = userRepository.findById(existing.getUserId())
+                .orElseThrow(() -> ApiException.unauthorized("Your session has expired. Please sign in again."));
+        if (user.isDeleted() || user.isBanned()) {
+            existing.setRevoked(true);
+            refreshTokenRepository.save(existing);
+            throw ApiException.unauthorized("Your session is no longer valid. Please sign in again.");
+        }
+        // Rotate: revoke the presented token, mint a fresh pair.
+        existing.setRevoked(true);
+        refreshTokenRepository.save(existing);
+        return issueTokens(user);
+    }
+
+    /** Revoke a single refresh token (sign-out on this device). Idempotent. */
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenRepository.findByToken(refreshToken).ifPresent(rt -> {
+            rt.setRevoked(true);
+            refreshTokenRepository.save(rt);
+        });
+    }
+
+    /** Issue an access + refresh token pair for a user and persist the refresh row. */
+    private AuthResponse issueTokens(User user) {
+        RefreshToken rt = new RefreshToken();
+        rt.setToken(newToken());
+        rt.setUserId(user.getId());
+        rt.setExpiresAt(Instant.now().plus(refreshTtl));
+        refreshTokenRepository.save(rt);
+        return new AuthResponse(jwtService.generateToken(user), rt.getToken(), UserDto.from(user));
     }
 
     // --- Email verification (Phase 7) ---
@@ -245,6 +304,12 @@ public class AuthService {
         user.setResetToken(null);
         user.setResetTokenExpiry(null);
         userRepository.save(user);
+        // Changing the password kills every other active session.
+        refreshTokenRepository.revokeAllForUser(user.getId());
+        notificationService.notify(user.getId(), NotificationType.SECURITY,
+                "Password changed",
+                "Your Dishaspora password was just changed. If this wasn't you, reset it immediately.",
+                "/settings");
     }
 
     // --- Account deletion (soft-delete) ---
@@ -267,6 +332,8 @@ public class AuthService {
         user.setEmailChangeToken(null);
         user.setPendingEmail(null);
         userRepository.save(user);
+        // Kill all sessions for the deleted account.
+        refreshTokenRepository.revokeAllForUser(user.getId());
     }
 
     // --- Profile update ---

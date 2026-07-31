@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -134,6 +134,13 @@ export default function Home() {
 
   const refreshing = trending.isRefetching || stories.isRefetching || vendors.isRefetching;
 
+  // Refresh only what this screen owns, not the entire query cache.
+  const onRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['trending'] });
+    queryClient.invalidateQueries({ queryKey: ['stories'] });
+    queryClient.invalidateQueries({ queryKey: ['vendors'] });
+  }, [queryClient]);
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -142,7 +149,7 @@ export default function Home() {
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={() => queryClient.invalidateQueries()}
+          onRefresh={onRefresh}
           tintColor={colors.brandDark}
         />
       }
@@ -173,6 +180,20 @@ export default function Home() {
       <Animated.View entering={FadeInDown.delay(60).duration(350)} style={styles.section}>
         <SearchRow onPressInput={() => router.push('/(tabs)/search')} />
       </Animated.View>
+
+      {/* Feed-wide load failure (backend unreachable): don't silently show empty
+          sections — surface a retry. Partial failures still degrade gracefully. */}
+      {trending.isError && stories.isError && vendors.isError ? (
+        <View style={styles.section}>
+          <View style={styles.loadError} accessibilityRole="alert">
+            <Ionicons name="cloud-offline-outline" size={18} color={colors.inkSoft} />
+            <Text style={styles.loadErrorText}>We couldn't load your feed.</Text>
+            <TouchableOpacity onPress={onRefresh} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.loadErrorRetry}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {/* Snap & Cook — photograph a dish for an AI recipe + nutrition */}
       <Animated.View entering={FadeInDown.delay(90).duration(350)} style={styles.section}>
@@ -357,6 +378,17 @@ const styles = StyleSheet.create({
   greetingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   greeting: { fontSize: 13, color: colors.inkSoft },
   section: { paddingHorizontal: 20, marginBottom: 20 },
+  loadError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  loadErrorText: { flex: 1, fontSize: 13.5, color: colors.inkSoft, fontWeight: '600' },
+  loadErrorRetry: { fontSize: 13.5, color: colors.brandDark, fontWeight: '800' },
   sectionHeaderPad: { paddingHorizontal: 20, marginBottom: 12 },
   hero: {
     borderRadius: 28,

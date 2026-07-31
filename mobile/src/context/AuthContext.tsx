@@ -8,10 +8,25 @@ import React, {
   useState,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, setToken, setUnauthorizedHandler } from '../api';
+import {
+  api,
+  setRefreshToken,
+  setToken,
+  setTokensRefreshedHandler,
+  setUnauthorizedHandler,
+} from '../api';
+import {
+  clearStoredTokens,
+  getStoredRefreshToken,
+  getStoredToken,
+  setStoredRefreshToken,
+  setStoredToken,
+} from '../secureStore';
+import { report } from '../logger';
 import type { AuthResponse, Country, User } from '../types';
 
-const TOKEN_KEY = 'dishaspora.token';
+// Token now lives in the OS keychain (see secureStore). Only non-sensitive
+// cached data stays in AsyncStorage.
 const USER_KEY = 'dishaspora.user';
 export const ONBOARDED_KEY = 'dishaspora.onboarded';
 
@@ -45,8 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [storedToken, storedUser, storedOnboarded] = await Promise.all([
-          AsyncStorage.getItem(TOKEN_KEY),
+        const [storedToken, storedRefresh, storedUser, storedOnboarded] = await Promise.all([
+          getStoredToken(), // keychain (migrates legacy plaintext token)
+          getStoredRefreshToken(),
           AsyncStorage.getItem(USER_KEY),
           AsyncStorage.getItem(ONBOARDED_KEY),
         ]);
@@ -57,10 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             parsedUser = JSON.parse(storedUser);
           } catch {
             // Corrupt stored user — drop the session and start logged-out.
-            await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+            await clearStoredTokens();
+            await AsyncStorage.removeItem(USER_KEY);
           }
           if (!parsedUser) return;
           setToken(storedToken);
+          setRefreshToken(storedRefresh);
           setTokenState(storedToken);
           setUser(parsedUser);
           // refresh user in background (token may be stale)
@@ -75,10 +93,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setToken(null);
                 setTokenState(null);
                 setUser(null);
-                AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]).catch(() => {});
+                clearStoredTokens().catch(() => {});
+                AsyncStorage.removeItem(USER_KEY).catch(() => {});
               }
             });
         }
+      } catch (e) {
+        report(e, { where: 'AuthContext.bootstrap' });
       } finally {
         setLoading(false);
       }
@@ -87,12 +108,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const persist = useCallback(async (auth: AuthResponse) => {
     setToken(auth.token);
+    setRefreshToken(auth.refreshToken ?? null);
     setTokenState(auth.token);
     setUser(auth.user);
-    await AsyncStorage.multiSet([
-      [TOKEN_KEY, auth.token],
-      [USER_KEY, JSON.stringify(auth.user)],
+    await Promise.all([
+      setStoredToken(auth.token),
+      auth.refreshToken ? setStoredRefreshToken(auth.refreshToken) : Promise.resolve(),
+      AsyncStorage.setItem(USER_KEY, JSON.stringify(auth.user)),
     ]);
+  }, []);
+
+  // Persist silently-rotated tokens (from the api layer's 401 auto-refresh) back
+  // into secure storage and keep our token state in sync.
+  useEffect(() => {
+    setTokensRefreshedHandler((token, refresh) => {
+      setTokenState(token);
+      setStoredToken(token).catch(() => {});
+      setStoredRefreshToken(refresh).catch(() => {});
+    });
+    return () => setTokensRefreshedHandler(null);
   }, []);
 
   const login = useCallback(
@@ -119,12 +153,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Best-effort server-side revocation of the refresh token before we drop it.
+    const refresh = await getStoredRefreshToken().catch(() => null);
+    if (refresh) {
+      api.post('/auth/logout', { refreshToken: refresh }).catch(() => {});
+    }
     setToken(null);
+    setRefreshToken(null);
     setTokenState(null);
     setUser(null);
     // Drop every cached query so the next account starts clean (no data leak).
     queryClient.clear();
-    await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+    await Promise.all([clearStoredTokens(), AsyncStorage.removeItem(USER_KEY)]);
   }, [queryClient]);
 
   // Register a global session-expiry handler: any authenticated request that

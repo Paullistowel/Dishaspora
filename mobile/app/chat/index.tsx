@@ -7,17 +7,15 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '@/api';
 import Avatar from '@/components/Avatar';
 import EmptyState from '@/components/EmptyState';
 import PressableScale from '@/components/PressableScale';
 import ScreenHeader from '@/components/ScreenHeader';
 import { Skeleton } from '@/components/Skeleton';
+import { useChatThreads } from '@/hooks/useChat';
 import { colors, shadow } from '@/theme';
-import type { ChatThread } from '@/types';
 
 function timeAgo(iso: string | null): string {
   if (!iso) return '';
@@ -33,10 +31,7 @@ function timeAgo(iso: string | null): string {
 export default function ChatThreads() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const threads = useQuery({
-    queryKey: ['chat-threads'],
-    queryFn: () => api.get<ChatThread[]>('/chat/threads'),
-  });
+  const threads = useChatThreads();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>

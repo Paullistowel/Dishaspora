@@ -23,7 +23,10 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:dishaspora-dev-secret-key-please-change-in-production-4f8a2c1e9b7d6350a1b2c3d4e5f60718}
-  expiration-ms: 604800000
+  # Short-lived access token (30 min). The client silently refreshes it using the
+  # long-lived refresh token below (30 days), which is rotated on every use.
+  expiration-ms: ${JWT_EXPIRATION_MS:1800000}
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:2592000000}
 
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:}
@@ -57,6 +60,18 @@ auth:
   # Set AUTH_REQUIRE_VERIFIED_EMAIL=true once SMTP is configured to block
   # unverified users at login. Left false so seeded/demo accounts keep working.
   require-verified-email: ${AUTH_REQUIRE_VERIFIED_EMAIL:false}
+
+# CORS: "*" for local dev / Expo tunnel. In production set CORS_ALLOWED_ORIGINS to
+# a comma-separated allow-list of your real web/admin origins.
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+
+# In-memory rate limiting for sensitive auth endpoints (login/register/forgot/
+# reset/resend). Caps requests per client IP per window. Disable for load tests.
+rate-limit:
+  enabled: ${RATE_LIMIT_ENABLED:true}
+  max-requests: ${RATE_LIMIT_MAX:10}
+  window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
 
 # NOTE: SMTP is intentionally NOT declared here. Set SPRING_MAIL_HOST (+ PORT,
 # USERNAME, PASSWORD) in the environment to enable real email; when unset, no

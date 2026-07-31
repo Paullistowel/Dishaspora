@@ -26,7 +26,9 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.dishaspora.app",
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -53,7 +55,10 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-mail-composer",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": false

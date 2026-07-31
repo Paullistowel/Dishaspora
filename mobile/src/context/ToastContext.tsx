@@ -18,14 +18,27 @@ import { colors, radius, shadowStrong } from '../theme';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
+interface ToastAction {
+  label: string;
+  onPress: () => void;
+}
+
+interface ToastOptions {
+  /** Optional inline action button, e.g. Undo. Extends the visible duration. */
+  action?: ToastAction;
+  /** Override the auto-dismiss delay (ms). */
+  durationMs?: number;
+}
+
 interface ToastItem {
   id: number;
   message: string;
   kind: ToastKind;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  show: (message: string, kind?: ToastKind) => void;
+  show: (message: string, kind?: ToastKind, options?: ToastOptions) => void;
   success: (message: string) => void;
   error: (message: string) => void;
   info: (message: string) => void;
@@ -49,11 +62,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const show = useCallback(
-    (message: string, kind: ToastKind = 'info') => {
+    (message: string, kind: ToastKind = 'info', options?: ToastOptions) => {
       const id = nextId.current++;
-      setToasts((prev) => [...prev.slice(-2), { id, message, kind }]);
-      // Errors linger a touch longer so they can be read.
-      setTimeout(() => dismiss(id), kind === 'error' ? 4200 : 2800);
+      setToasts((prev) => [...prev.slice(-2), { id, message, kind, action: options?.action }]);
+      // Errors and actionable toasts linger longer so they can be read/acted on.
+      const duration =
+        options?.durationMs ?? (options?.action ? 5000 : kind === 'error' ? 4200 : 2800);
+      setTimeout(() => dismiss(id), duration);
     },
     [dismiss]
   );
@@ -88,6 +103,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <Text style={styles.message} numberOfLines={3}>
                 {t.message}
               </Text>
+              {t.action ? (
+                <Text
+                  style={styles.action}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.action.label}
+                  onPress={() => {
+                    t.action?.onPress();
+                    dismiss(t.id);
+                  }}
+                >
+                  {t.action.label}
+                </Text>
+              ) : null}
             </Animated.View>
           );
         })}
@@ -123,4 +151,11 @@ const styles = StyleSheet.create({
     ...shadowStrong,
   },
   message: { flex: 1, color: colors.ink, fontSize: 14, fontWeight: '600' },
+  action: {
+    color: colors.brandDark,
+    fontSize: 14,
+    fontWeight: '800',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
 });
