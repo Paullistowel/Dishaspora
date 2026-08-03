@@ -26,16 +26,20 @@ public class EmailService {
 
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String from;
+    private final String mailHost;
 
     public EmailService(ObjectProvider<JavaMailSender> mailSender,
-                        @Value("${app.mail.from:Dishaspora <no-reply@dishaspora.app>}") String from) {
+                        @Value("${app.mail.from:Dishaspora <no-reply@dishaspora.app>}") String from,
+                        @Value("${spring.mail.host:}") String mailHost) {
         this.mailSender = mailSender;
         this.from = from;
+        this.mailHost = mailHost == null ? "" : mailHost.trim();
     }
 
-    /** True when a real SMTP transport is wired (spring.mail.host set). */
+    /** True when a real SMTP host is configured (the bean always exists once
+     *  spring.mail is declared, so we gate on the host value, not bean presence). */
     public boolean isConfigured() {
-        return mailSender.getIfAvailable() != null;
+        return !mailHost.isBlank() && mailSender.getIfAvailable() != null;
     }
 
     /**

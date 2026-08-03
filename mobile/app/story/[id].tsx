@@ -56,7 +56,8 @@ export default function StoryReader() {
     if (!recipe.data) return <ErrorView message={t('intro.storyNotFound')} />;
     title = `${t('intro.storyOf')} ${recipe.data.title}`;
     body = recipe.data.story ?? t('intro.noStory');
-    imageUrl = recipe.data.storyImageUrl ?? recipe.data.imageUrl;
+    // Show the dish's own photo on its story page so image and story match.
+    imageUrl = recipe.data.imageUrl ?? recipe.data.storyImageUrl;
     meta = `${recipe.data.cuisine}${recipe.data.vendorName ? ` · ${recipe.data.vendorName}` : ''}`;
     viewRecipeId = recipe.data.id;
   } else {

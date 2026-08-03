@@ -4,6 +4,21 @@ server:
 spring:
   application:
     name: dishaspora-backend
+  # SMTP is mapped explicitly from env vars (spring-dotenv exposes SPRING_MAIL_* as
+  # literal keys, so Spring Boot's mail auto-config won't pick them up on its own).
+  # When SPRING_MAIL_HOST is blank the mailer is created but EmailService treats it
+  # as "not configured" and logs instead of sending.
+  mail:
+    host: ${SPRING_MAIL_HOST:}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/dishaspora}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}

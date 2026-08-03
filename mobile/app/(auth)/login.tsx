@@ -19,7 +19,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useI18n } from '@/context/I18nContext';
 import { shadow, type ThemeColors } from '@/theme';
-import { ApiError } from '@/api';
+import { api, ApiError } from '@/api';
 import { DEMO_MODE } from '@/config';
 
 export default function Login() {
@@ -43,6 +43,28 @@ export default function Login() {
       await login(email.trim(), password);
       router.replace('/(tabs)');
     } catch (e) {
+      // Unverified email (403) → offer to resend the verification link right here,
+      // so an unverified user isn't stuck (the in-app resend needs a login).
+      if (e instanceof ApiError && e.status === 403 && /verif/i.test(e.message)) {
+        Alert.alert(t('auth.loginFailedTitle'), e.message, [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('account.resendVerification'),
+            onPress: async () => {
+              try {
+                await api.post('/auth/resend-verification', { email: email.trim() });
+                Alert.alert(t('auth.loginFailedTitle'), t('auth.verificationResent'));
+              } catch (err) {
+                Alert.alert(
+                  t('auth.loginFailedTitle'),
+                  err instanceof ApiError ? err.message : t('auth.somethingWentWrong')
+                );
+              }
+            },
+          },
+        ]);
+        return;
+      }
       Alert.alert(
         t('auth.loginFailedTitle'),
         e instanceof ApiError ? e.message : t('auth.somethingWentWrong')

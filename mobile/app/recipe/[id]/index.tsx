@@ -389,7 +389,7 @@ export default function RecipeDetail() {
               >
                 <View style={styles.storyCard}>
                   <Image
-                    source={{ uri: IMG(rec.storyImageUrl ?? rec.imageUrl) }}
+                    source={{ uri: IMG(rec.imageUrl ?? rec.storyImageUrl) }}
                     style={styles.storyImg}
                     contentFit="cover"
                   />

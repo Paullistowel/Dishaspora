@@ -71,11 +71,16 @@ export default function Register() {
 
     setBusy(true);
     try {
-      await register(name.trim(), email.trim(), password, country);
-      // No auto-login: the account is unverified. Send them to sign-in with a
-      // clear "check your email to verify" message.
-      toast.success(t('auth.verifyEmailSent'));
-      router.replace('/(auth)/login');
+      const result = await register(name.trim(), email.trim(), password, country);
+      if (result === 'in') {
+        // Signed in immediately (email verification not required) — go into the app.
+        toast.success(t('auth.accountCreatedToast'));
+        router.replace('/onboarding');
+      } else {
+        // Verification required — send them to sign-in with a "check your email" note.
+        toast.success(t('auth.verifyEmailSent'));
+        router.replace('/(auth)/login');
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setErrors({ email: t('auth.emailAlreadyRegistered') });

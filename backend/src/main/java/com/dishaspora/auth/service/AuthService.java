@@ -66,19 +66,30 @@ public class AuthService {
     }
 
     /**
-     * Registers a new (unverified) account and emails a verification link. Does
-     * NOT issue a session — the user must verify their email, then log in. This
-     * keeps the "no login until verified" rule airtight (a token here would be a
-     * bypass).
+     * Registers a new account and starts email verification.
+     *
+     * <p>Verification is only enforceable when email delivery is actually wired up.
+     * So the behaviour adapts:
+     * <ul>
+     *   <li><b>SMTP configured</b> → account stays unverified, a verification email
+     *       is sent, and NO session is issued (token is null) — the user must verify,
+     *       then log in.</li>
+     *   <li><b>SMTP not configured</b> (dev / no Gmail) → verification can't be
+     *       delivered, so the account is auto-verified and a session is issued right
+     *       away, keeping the app fully usable.</li>
+     * </ul>
+     * The returned {@link AuthResponse} has a non-null token in the second case and a
+     * null token in the first, so the client knows whether to enter or show "verify".
      */
     @Transactional
-    public void register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request) {
         String email = request.email().toLowerCase().trim();
         log.info("Register: request received for {}", email);
         if (userRepository.existsByEmailIgnoreCase(email)) {
             log.info("Register: rejected — {} already exists", email);
             throw ApiException.conflict("An account with this email already exists");
         }
+        boolean emailDelivery = emailService.isConfigured();
         User user = new User();
         user.setName(request.name());
         user.setEmail(email);
@@ -88,16 +99,28 @@ public class AuthService {
         // No auto-generated image — new users get a clean initials avatar until they
         // upload one (avatarUrl stays null; the client renders their initials).
         user.setAvatarUrl(null);
-        user.setEmailVerified(false);
-        user.setVerificationToken(newToken());
-        user.setVerificationTokenExpiry(Instant.now().plus(VERIFICATION_TTL));
-        user.setVerificationSentAt(Instant.now());
+
+        if (emailDelivery) {
+            user.setEmailVerified(false);
+            user.setVerificationToken(newToken());
+            user.setVerificationTokenExpiry(Instant.now().plus(VERIFICATION_TTL));
+            user.setVerificationSentAt(Instant.now());
+            user = userRepository.save(user);
+            log.info("Register: user #{} created (unverified); verification token stored, expires {}",
+                    user.getId(), user.getVerificationTokenExpiry());
+            boolean sent = sendVerificationEmail(user);
+            log.info("Register: verification email for {} {}", email,
+                    sent ? "handed to SMTP" : "send FAILED — link is in the server log");
+            // No session — client shows "check your email".
+            return new AuthResponse(null, null, UserDto.from(user));
+        }
+
+        // No SMTP: verification is impossible to complete, so don't trap the user.
+        user.setEmailVerified(true);
         user = userRepository.save(user);
-        log.info("Register: user #{} created (unverified); verification token stored, expires {}",
-                user.getId(), user.getVerificationTokenExpiry());
-        boolean sent = sendVerificationEmail(user);
-        log.info("Register: verification email for {} {}", email,
-                sent ? "handed to SMTP" : "NOT sent (SMTP unconfigured or failed) — link is in the server log");
+        log.warn("Register: SMTP NOT configured — auto-verified & signed in {} (set SPRING_MAIL_* to "
+                + "enforce email verification).", email);
+        return issueTokens(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -112,7 +135,9 @@ public class AuthService {
         if (user.isBanned()) {
             throw ApiException.forbidden("Your account has been banned. Contact support.");
         }
-        if (requireVerifiedEmail && !user.isEmailVerified()) {
+        // Only block on unverified email when verification can actually be delivered.
+        // With no SMTP configured, blocking would trap users who can never verify.
+        if (requireVerifiedEmail && emailService.isConfigured() && !user.isEmailVerified()) {
             throw ApiException.forbidden("Please verify your email address before signing in. Check your inbox.");
         }
         return issueTokens(user);

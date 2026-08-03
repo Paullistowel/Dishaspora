@@ -36,12 +36,14 @@ interface AuthContextValue {
   loading: boolean;
   onboarded: boolean;
   login: (email: string, password: string) => Promise<User>;
+  /** Resolves 'in' when the account is signed in immediately, or 'verify' when the
+   *  user must verify their email first (backend sent a verification link). */
   register: (
     name: string,
     email: string,
     password: string,
     country: Country
-  ) => Promise<void>;
+  ) => Promise<'in' | 'verify'>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<User | null>;
   updateUser: (user: User) => Promise<void>;
@@ -140,17 +142,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (name: string, email: string, password: string, country: Country) => {
-      // Registration no longer issues a session — the backend sends a verification
-      // email and the user must verify, then sign in. (Enforces "no login until
-      // verified"; auto-login here would be a bypass.)
-      await api.post<{ message: string }>('/auth/register', {
+      // The backend returns a session token when email verification isn't required
+      // (no SMTP configured) — sign in immediately. When it returns no token, the
+      // user must verify their email first.
+      const auth = await api.post<AuthResponse>('/auth/register', {
         name,
         email,
         password,
         country,
       });
+      if (auth.token) {
+        await persist(auth);
+        return 'in' as const;
+      }
+      return 'verify' as const;
     },
-    []
+    [persist]
   );
 
   const logout = useCallback(async () => {
