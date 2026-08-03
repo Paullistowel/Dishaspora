@@ -15,6 +15,8 @@ import com.dishaspora.common.enums.Enums.NotificationType;
 import com.dishaspora.common.enums.Enums.Role;
 import com.dishaspora.common.exception.ApiException;
 import com.dishaspora.notification.service.NotificationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +29,8 @@ import java.util.UUID;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private static final Duration VERIFICATION_TTL = Duration.ofHours(24);
     private static final Duration RESET_TTL = Duration.ofHours(1);
@@ -61,14 +65,23 @@ public class AuthService {
         this.refreshTtl = Duration.ofMillis(refreshExpirationMs);
     }
 
+    /**
+     * Registers a new (unverified) account and emails a verification link. Does
+     * NOT issue a session — the user must verify their email, then log in. This
+     * keeps the "no login until verified" rule airtight (a token here would be a
+     * bypass).
+     */
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmailIgnoreCase(request.email())) {
+    public void register(RegisterRequest request) {
+        String email = request.email().toLowerCase().trim();
+        log.info("Register: request received for {}", email);
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            log.info("Register: rejected — {} already exists", email);
             throw ApiException.conflict("An account with this email already exists");
         }
         User user = new User();
         user.setName(request.name());
-        user.setEmail(request.email().toLowerCase());
+        user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(Role.USER);
         user.setCountry(request.country());
@@ -80,8 +93,11 @@ public class AuthService {
         user.setVerificationTokenExpiry(Instant.now().plus(VERIFICATION_TTL));
         user.setVerificationSentAt(Instant.now());
         user = userRepository.save(user);
-        sendVerificationEmail(user);
-        return issueTokens(user);
+        log.info("Register: user #{} created (unverified); verification token stored, expires {}",
+                user.getId(), user.getVerificationTokenExpiry());
+        boolean sent = sendVerificationEmail(user);
+        log.info("Register: verification email for {} {}", email,
+                sent ? "handed to SMTP" : "NOT sent (SMTP unconfigured or failed) — link is in the server log");
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -152,16 +168,25 @@ public class AuthService {
 
     @Transactional
     public User verifyEmail(String token) {
+        log.info("Verify: request received (token …{})",
+                token != null && token.length() > 6 ? token.substring(token.length() - 6) : "?");
         User user = userRepository.findByVerificationToken(token)
-                .orElseThrow(() -> ApiException.badRequest("This verification link is invalid."));
+                .orElseThrow(() -> {
+                    // A used (or bogus) token no longer matches any user — single-use.
+                    log.warn("Verify: FAILED — invalid or already-used token");
+                    return ApiException.badRequest("This verification link is invalid or has already been used.");
+                });
         if (user.getVerificationTokenExpiry() != null
                 && user.getVerificationTokenExpiry().isBefore(Instant.now())) {
+            log.warn("Verify: FAILED — token for {} expired at {}", user.getEmail(), user.getVerificationTokenExpiry());
             throw ApiException.badRequest("This verification link has expired. Request a new one.");
         }
         user.setEmailVerified(true);
+        // Clear the token so the link can't be reused (single-use activation).
         user.setVerificationToken(null);
         user.setVerificationTokenExpiry(null);
         userRepository.save(user);
+        log.info("Verify: SUCCESS — {} is now verified", user.getEmail());
         return user;
     }
 
@@ -355,19 +380,32 @@ public class AuthService {
         return UserDto.from(userRepository.save(user));
     }
 
+    /** Update dietary preferences used for AI personalization + allergen warnings. */
+    @Transactional
+    public UserDto updatePreferences(User current,
+            com.dishaspora.auth.dto.AuthDtos.UpdatePreferencesRequest request) {
+        User user = userRepository.findById(current.getId())
+                .orElseThrow(() -> ApiException.unauthorized("User not found"));
+        if (request.allergies() != null) user.setAllergies(request.allergies().trim());
+        if (request.dietaryPreferences() != null) user.setDietaryPreferences(request.dietaryPreferences().trim());
+        if (request.fitnessGoal() != null) user.setFitnessGoal(request.fitnessGoal().trim());
+        return UserDto.from(userRepository.save(user));
+    }
+
     // --- helpers ---
 
-    private void sendVerificationEmail(User user) {
+    private boolean sendVerificationEmail(User user) {
         String link = baseUrl + "/api/auth/verify-email?token=" + user.getVerificationToken();
-        emailService.send(user.getEmail(), "Verify your Dishaspora email", """
+        log.info("Register: generating verification email for {} (link base {})", user.getEmail(), baseUrl);
+        return emailService.send(user.getEmail(), "Verify your Dishaspora email", """
                 Akwaaba %s!
 
-                Welcome to Dishaspora. Please verify your email address by opening the link
-                below (valid for 24 hours):
+                Welcome to Dishaspora — your account has been created. Please verify your
+                email address by opening the link below (valid for 24 hours):
 
                 %s
 
-                Happy cooking!
+                After verifying, you can sign in. Happy cooking!
                 """.formatted(user.getName(), link));
     }
 

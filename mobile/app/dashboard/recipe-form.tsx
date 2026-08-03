@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -21,7 +21,9 @@ import Input from '@/components/Input';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { IMG } from '@/config';
-import { colors, shadow } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadow, type ThemeColors } from '@/theme';
 import type { MealType, Recipe, RecipeCategory } from '@/types';
 
 const CATEGORIES: RecipeCategory[] = ['LOCAL', 'CONTINENTAL', 'FOREIGN', 'DRINK'];
@@ -41,6 +43,9 @@ export default function RecipeForm() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -83,7 +88,7 @@ export default function RecipeForm() {
       });
       setter(url);
     } catch {
-      Alert.alert('Upload failed', 'Could not upload the file (max 50MB).');
+      Alert.alert(t('dashboard.uploadFailed'), t('dashboard.uploadFileError'));
     } finally {
       setUploading(null);
     }
@@ -123,11 +128,11 @@ export default function RecipeForm() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendor-recipes'] });
-      Alert.alert('Recipe submitted', 'Your recipe is pending review.', [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert(t('dashboard.recipeSubmitted'), t('dashboard.recipePendingReview'), [
+        { text: t('dashboard.ok'), onPress: () => router.back() },
       ]);
     },
-    onError: (e: any) => Alert.alert('Submission failed', e?.message ?? 'Please try again.'),
+    onError: (e: any) => Alert.alert(t('dashboard.submissionFailed'), e?.message ?? t('dashboard.pleaseTryAgain')),
   });
 
   const valid =
@@ -142,7 +147,7 @@ export default function RecipeForm() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Upload recipe" />
+        <ScreenHeader title={t('dashboard.uploadRecipe')} />
         <ScrollView
           contentContainerStyle={{ padding: 20, paddingBottom: 80, gap: 14 }}
           keyboardShouldPersistTaps="handled"
@@ -158,23 +163,23 @@ export default function RecipeForm() {
               <View style={styles.imagePlaceholder}>
                 <Ionicons name="image-outline" size={28} color={colors.inkFaint} />
                 <Text style={styles.imageHint}>
-                  {uploading === 'image' ? 'Uploading...' : 'Add a cover photo'}
+                  {uploading === 'image' ? t('dashboard.uploading') : t('dashboard.addACoverPhoto')}
                 </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          <Input placeholder="Recipe title" value={title} onChangeText={setTitle} />
-          <Input placeholder="Short description" value={description} onChangeText={setDescription} multiline />
+          <Input placeholder={t('dashboard.recipeTitle')} value={title} onChangeText={setTitle} />
+          <Input placeholder={t('dashboard.shortDescription')} value={description} onChangeText={setDescription} multiline />
 
-          <Text style={styles.label}>Category</Text>
+          <Text style={styles.label}>{t('dashboard.category')}</Text>
           <View style={styles.chips}>
             {CATEGORIES.map((c) => (
               <ChoiceChip key={c} label={c.toLowerCase()} selected={category === c} onPress={() => setCategory(c)} />
             ))}
           </View>
 
-          <Text style={styles.label}>Meal type</Text>
+          <Text style={styles.label}>{t('dashboard.mealType')}</Text>
           <View style={styles.chips}>
             {MEAL_TYPES.map((m) => (
               <ChoiceChip key={m} label={m.toLowerCase()} selected={mealType === m} onPress={() => setMealType(m)} />
@@ -182,45 +187,45 @@ export default function RecipeForm() {
           </View>
 
           <View style={styles.row2}>
-            <Input placeholder="Cuisine (e.g. Ghanaian)" value={cuisine} onChangeText={setCuisine} style={{ flex: 1 }} />
-            <Input placeholder="Origin (GH/NG/...)" value={countryOfOrigin} onChangeText={setCountryOfOrigin} style={{ width: 130 }} />
+            <Input placeholder={t('dashboard.cuisinePlaceholder')} value={cuisine} onChangeText={setCuisine} style={{ flex: 1 }} />
+            <Input placeholder={t('dashboard.originPlaceholder')} value={countryOfOrigin} onChangeText={setCountryOfOrigin} style={{ width: 130 }} />
           </View>
           <View style={styles.row2}>
-            <Input placeholder="Calories" value={calories} onChangeText={setCalories} keyboardType="number-pad" style={{ flex: 1 }} />
-            <Input placeholder="Servings" value={servings} onChangeText={setServings} keyboardType="number-pad" style={{ flex: 1 }} />
+            <Input placeholder={t('dashboard.calories')} value={calories} onChangeText={setCalories} keyboardType="number-pad" style={{ flex: 1 }} />
+            <Input placeholder={t('dashboard.servings')} value={servings} onChangeText={setServings} keyboardType="number-pad" style={{ flex: 1 }} />
           </View>
           <View style={styles.row2}>
-            <Input placeholder="Prep min" value={prepMinutes} onChangeText={setPrepMinutes} keyboardType="number-pad" style={{ flex: 1 }} />
-            <Input placeholder="Cook min" value={cookMinutes} onChangeText={setCookMinutes} keyboardType="number-pad" style={{ flex: 1 }} />
+            <Input placeholder={t('dashboard.prepMin')} value={prepMinutes} onChangeText={setPrepMinutes} keyboardType="number-pad" style={{ flex: 1 }} />
+            <Input placeholder={t('dashboard.cookMin')} value={cookMinutes} onChangeText={setCookMinutes} keyboardType="number-pad" style={{ flex: 1 }} />
           </View>
-          <Input placeholder="Meal frequency (e.g. 2-3 times per week)" value={mealFrequency} onChangeText={setMealFrequency} />
-          <Input placeholder="Why this frequency?" value={mealFrequencyReason} onChangeText={setMealFrequencyReason} multiline />
+          <Input placeholder={t('dashboard.mealFrequencyPlaceholder')} value={mealFrequency} onChangeText={setMealFrequency} />
+          <Input placeholder={t('dashboard.mealFrequencyReasonPlaceholder')} value={mealFrequencyReason} onChangeText={setMealFrequencyReason} multiline />
 
           {/* Ingredients repeater */}
-          <Text style={styles.label}>Ingredients</Text>
+          <Text style={styles.label}>{t('dashboard.ingredients')}</Text>
           {ingredients.map((ingredient, i) => (
             <View key={i} style={styles.repeaterRow}>
               <Input
-                placeholder="Name"
+                placeholder={t('dashboard.name')}
                 value={ingredient.name}
-                onChangeText={(t) =>
-                  setIngredients((arr) => arr.map((x, xi) => (xi === i ? { ...x, name: t } : x)))
+                onChangeText={(val) =>
+                  setIngredients((arr) => arr.map((x, xi) => (xi === i ? { ...x, name: val } : x)))
                 }
                 style={{ flex: 1.6 }}
               />
               <Input
-                placeholder="Qty"
+                placeholder={t('dashboard.qty')}
                 value={ingredient.quantity}
-                onChangeText={(t) =>
-                  setIngredients((arr) => arr.map((x, xi) => (xi === i ? { ...x, quantity: t } : x)))
+                onChangeText={(val) =>
+                  setIngredients((arr) => arr.map((x, xi) => (xi === i ? { ...x, quantity: val } : x)))
                 }
                 style={{ flex: 0.7 }}
               />
               <Input
-                placeholder="Unit"
+                placeholder={t('dashboard.unit')}
                 value={ingredient.unit}
-                onChangeText={(t) =>
-                  setIngredients((arr) => arr.map((x, xi) => (xi === i ? { ...x, unit: t } : x)))
+                onChangeText={(val) =>
+                  setIngredients((arr) => arr.map((x, xi) => (xi === i ? { ...x, unit: val } : x)))
                 }
                 style={{ flex: 0.7 }}
               />
@@ -238,29 +243,29 @@ export default function RecipeForm() {
             onPress={() => setIngredients((arr) => [...arr, { name: '', quantity: '', unit: '' }])}
           >
             <Ionicons name="add" size={16} color={colors.brandDark} />
-            <Text style={styles.addRowText}>Add ingredient</Text>
+            <Text style={styles.addRowText}>{t('dashboard.addIngredient')}</Text>
           </TouchableOpacity>
 
           {/* Steps repeater */}
-          <Text style={styles.label}>Steps</Text>
+          <Text style={styles.label}>{t('dashboard.steps')}</Text>
           {steps.map((step, i) => (
             <View key={i} style={styles.repeaterRow}>
               <View style={styles.stepNum}>
                 <Text style={styles.stepNumText}>{i + 1}</Text>
               </View>
               <Input
-                placeholder="Instruction"
+                placeholder={t('dashboard.instruction')}
                 value={step.instruction}
-                onChangeText={(t) =>
-                  setSteps((arr) => arr.map((x, xi) => (xi === i ? { ...x, instruction: t } : x)))
+                onChangeText={(val) =>
+                  setSteps((arr) => arr.map((x, xi) => (xi === i ? { ...x, instruction: val } : x)))
                 }
                 style={{ flex: 1 }}
               />
               <Input
-                placeholder="Min"
+                placeholder={t('dashboard.min')}
                 value={step.durationMinutes}
-                onChangeText={(t) =>
-                  setSteps((arr) => arr.map((x, xi) => (xi === i ? { ...x, durationMinutes: t } : x)))
+                onChangeText={(val) =>
+                  setSteps((arr) => arr.map((x, xi) => (xi === i ? { ...x, durationMinutes: val } : x)))
                 }
                 keyboardType="number-pad"
                 style={{ width: 74 }}
@@ -279,10 +284,10 @@ export default function RecipeForm() {
             onPress={() => setSteps((arr) => [...arr, { instruction: '', durationMinutes: '' }])}
           >
             <Ionicons name="add" size={16} color={colors.brandDark} />
-            <Text style={styles.addRowText}>Add step</Text>
+            <Text style={styles.addRowText}>{t('dashboard.addStep')}</Text>
           </TouchableOpacity>
 
-          <Input placeholder="Food story (cultural narrative)" value={story} onChangeText={setStory} multiline />
+          <Input placeholder={t('dashboard.foodStoryPlaceholder')} value={story} onChangeText={setStory} multiline />
 
           {/* Optional media */}
           <View style={styles.row2}>
@@ -292,7 +297,7 @@ export default function RecipeForm() {
             >
               <Ionicons name="videocam-outline" size={18} color={videoUrl ? colors.success : colors.inkSoft} />
               <Text style={styles.mediaText}>
-                {uploading === 'video' ? 'Uploading...' : videoUrl ? 'Video added' : 'Add video'}
+                {uploading === 'video' ? t('dashboard.uploading') : videoUrl ? t('dashboard.videoAdded') : t('dashboard.addVideo')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -301,13 +306,13 @@ export default function RecipeForm() {
             >
               <Ionicons name="mic-outline" size={18} color={audioUrl ? colors.success : colors.inkSoft} />
               <Text style={styles.mediaText}>
-                {uploading === 'audio' ? 'Uploading...' : audioUrl ? 'Audio added' : 'Add audio'}
+                {uploading === 'audio' ? t('dashboard.uploading') : audioUrl ? t('dashboard.audioAdded') : t('dashboard.addAudio')}
               </Text>
             </TouchableOpacity>
           </View>
 
           <PrimaryButton
-            title="Submit for review"
+            title={t('dashboard.submitForReview')}
             disabled={!valid || uploading !== null}
             loading={submit.isPending}
             onPress={() => submit.mutate()}
@@ -319,54 +324,55 @@ export default function RecipeForm() {
   );
 }
 
-const styles = StyleSheet.create({
-  imagePick: { borderRadius: 20, overflow: 'hidden', ...shadow },
-  imagePreview: { width: '100%', height: 170 },
-  imagePlaceholder: {
-    height: 150,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.inkFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  imageHint: { fontSize: 13, color: colors.inkFaint },
-  label: { fontSize: 14, fontWeight: '600', color: colors.ink, marginTop: 6 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  row2: { flexDirection: 'row', gap: 10 },
-  repeaterRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  removeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderColor: '#FDECEC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
-  addRowText: { fontSize: 13.5, color: colors.brandDark, fontWeight: '600' },
-  stepNum: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepNumText: { fontSize: 12, fontWeight: '700', color: colors.accentDark },
-  mediaBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingVertical: 13,
-  },
-  mediaBtnDone: { backgroundColor: '#E7F8EF' },
-  mediaText: { fontSize: 13, color: colors.inkSoft, fontWeight: '600' },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    imagePick: { borderRadius: 20, overflow: 'hidden', ...shadow },
+    imagePreview: { width: '100%', height: 170 },
+    imagePlaceholder: {
+      height: 150,
+      borderRadius: 20,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: colors.inkFaint,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    imageHint: { fontSize: 13, color: colors.inkFaint },
+    label: { fontSize: 14, fontWeight: '600', color: colors.ink, marginTop: 6 },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    row2: { flexDirection: 'row', gap: 10 },
+    repeaterRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    removeBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      borderWidth: 1.5,
+      borderColor: '#FDECEC',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+    addRowText: { fontSize: 13.5, color: colors.brandDark, fontWeight: '600' },
+    stepNum: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: colors.accentLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepNumText: { fontSize: 12, fontWeight: '700', color: colors.accentDark },
+    mediaBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingVertical: 13,
+    },
+    mediaBtnDone: { backgroundColor: '#E7F8EF' },
+    mediaText: { fontSize: 13, color: colors.inkSoft, fontWeight: '600' },
+  });

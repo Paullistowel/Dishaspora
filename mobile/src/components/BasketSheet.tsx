@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -43,29 +42,49 @@ export default function BasketSheet({
 
   const data = basket.data;
 
-  const addAll = () => {
-    if (!data || data.items.length === 0) return;
-    const rows = data.items.map((it) => ({ listing: it.listing, qty: it.qty }));
-    const res = cart.addAll(rows);
-    if (res === 'different-vendor') {
-      Alert.alert(
-        'Start a new cart?',
-        `Your cart has items from ${cart.vendorName}. Only one vendor per order — replace it with this basket?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Replace',
-            style: 'destructive',
-            onPress: () => {
-              cart.replaceAllWith(rows);
-              onClose();
-              router.push('/cart');
-            },
-          },
-        ]
-      );
-      return;
-    }
+  // Per-ingredient selection: every matched item starts selected at its
+  // recipe-required quantity; the user can uncheck items or adjust quantities
+  // before adding, and the total reflects only what's selected.
+  const [sel, setSel] = useState<Record<number, { selected: boolean; qty: number }>>({});
+
+  useEffect(() => {
+    if (!data) return;
+    setSel((prev) => {
+      const next: Record<number, { selected: boolean; qty: number }> = {};
+      for (const it of data.items) {
+        next[it.listing.id] = prev[it.listing.id] ?? { selected: true, qty: Math.max(1, it.qty) };
+      }
+      return next;
+    });
+  }, [data]);
+
+  const toggle = (id: number) =>
+    setSel((s) => ({ ...s, [id]: { ...s[id], selected: !s[id]?.selected } }));
+
+  const bump = (id: number, delta: number, max: number) =>
+    setSel((s) => {
+      const cur = s[id] ?? { selected: true, qty: 1 };
+      const cap = max > 0 ? max : Infinity;
+      const qty = Math.min(cap, Math.max(1, cur.qty + delta));
+      return { ...s, [id]: { ...cur, qty } };
+    });
+
+  const selectedRows = useMemo(() => {
+    if (!data) return [];
+    return data.items
+      .filter((it) => sel[it.listing.id]?.selected)
+      .map((it) => ({ listing: it.listing, qty: sel[it.listing.id]?.qty ?? it.qty }));
+  }, [data, sel]);
+
+  const selectedTotalMinor = useMemo(
+    () => selectedRows.reduce((n, r) => n + r.listing.amountMinor * r.qty, 0),
+    [selectedRows]
+  );
+
+  const addSelected = () => {
+    if (selectedRows.length === 0) return;
+    // Ingredients merge into the cart alongside anything already there (any vendor).
+    cart.addAll(selectedRows);
     onClose();
     router.push('/cart');
   };
@@ -100,29 +119,64 @@ export default function BasketSheet({
                   </Text>
                 </View>
               </View>
-              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-                {data.items.map((item, i) => (
-                  <Animated.View
-                    key={`${item.listing.id}-${i}`}
-                    entering={FadeInDown.delay(i * 40)}
-                    style={styles.itemRow}
-                  >
-                    <Image
-                      source={{ uri: IMG(item.listing.imageUrl) }}
-                      style={styles.itemImg}
-                      contentFit="cover"
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.itemName}>{item.ingredient.name}</Text>
-                      <Text style={styles.itemSub}>
-                        {item.listing.title} · {item.listing.quantity} {item.listing.unit}
+              <Text style={styles.selectHint}>Select the ingredients you need and adjust quantities.</Text>
+              <ScrollView style={{ maxHeight: 340 }} showsVerticalScrollIndicator={false}>
+                {data.items.map((item, i) => {
+                  const state = sel[item.listing.id] ?? { selected: true, qty: item.qty };
+                  const on = state.selected;
+                  return (
+                    <Animated.View
+                      key={`${item.listing.id}-${i}`}
+                      entering={FadeInDown.delay(i * 40)}
+                      style={[styles.itemRow, !on && { opacity: 0.5 }]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => toggle(item.listing.id)}
+                        hitSlop={8}
+                        style={[styles.checkbox, on && styles.checkboxOn]}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: on }}
+                        accessibilityLabel={item.ingredient.name}
+                      >
+                        {on ? <Ionicons name="checkmark" size={13} color="#FFFFFF" /> : null}
+                      </TouchableOpacity>
+                      <Image
+                        source={{ uri: IMG(item.listing.imageUrl) }}
+                        style={styles.itemImg}
+                        contentFit="cover"
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.itemName}>{item.ingredient.name}</Text>
+                        <Text style={styles.itemSub}>
+                          {item.listing.title} · {item.listing.quantity} {item.listing.unit}
+                        </Text>
+                      </View>
+                      {on ? (
+                        <View style={styles.stepper}>
+                          <TouchableOpacity
+                            onPress={() => bump(item.listing.id, -1, item.listing.stockQty)}
+                            disabled={state.qty <= 1}
+                            style={[styles.stepBtn, state.qty <= 1 && styles.stepBtnOff]}
+                            accessibilityLabel={`Less ${item.ingredient.name}`}
+                          >
+                            <Ionicons name="remove" size={15} color={colors.brandDark} />
+                          </TouchableOpacity>
+                          <Text style={styles.stepQty}>{state.qty}</Text>
+                          <TouchableOpacity
+                            onPress={() => bump(item.listing.id, 1, item.listing.stockQty)}
+                            style={styles.stepBtn}
+                            accessibilityLabel={`More ${item.ingredient.name}`}
+                          >
+                            <Ionicons name="add" size={15} color={colors.brandDark} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                      <Text style={styles.itemPrice}>
+                        {formatMoney(item.listing.amountMinor * state.qty, item.listing.currency)}
                       </Text>
-                    </View>
-                    <Text style={styles.itemPrice}>
-                      {formatMoney(item.listing.amountMinor * item.qty, item.listing.currency)}
-                    </Text>
-                  </Animated.View>
-                ))}
+                    </Animated.View>
+                  );
+                })}
                 {data.unmatched.map((ingredient, i) => (
                   <View key={`u-${i}`} style={[styles.itemRow, { opacity: 0.45 }]}>
                     <View style={[styles.itemImg, styles.unmatchedImg]}>
@@ -136,12 +190,18 @@ export default function BasketSheet({
                 ))}
               </ScrollView>
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalLabel}>
+                  Total · {selectedRows.length} item{selectedRows.length === 1 ? '' : 's'}
+                </Text>
                 <Text style={styles.totalValue}>
-                  {formatMoney(data.totalMinor, data.currency)}
+                  {formatMoney(selectedTotalMinor, data.currency)}
                 </Text>
               </View>
-              <PrimaryButton title="Add all to cart" onPress={addAll} />
+              <PrimaryButton
+                title={selectedRows.length === 0 ? 'Select ingredients' : `Add ${selectedRows.length} to cart`}
+                onPress={addSelected}
+                disabled={selectedRows.length === 0}
+              />
             </>
           )}
         </Animated.View>
@@ -170,6 +230,35 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: '700', color: colors.ink },
   emptyText: { fontSize: 13.5, color: colors.inkSoft, marginTop: 12, lineHeight: 20 },
+  selectHint: { fontSize: 12, color: colors.inkSoft, marginBottom: 4 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: colors.inkFaint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.brandLight,
+    borderRadius: 12,
+    padding: 3,
+  },
+  stepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBtnOff: { opacity: 0.35 },
+  stepQty: { minWidth: 20, textAlign: 'center', fontSize: 13, fontWeight: '800', color: colors.brandDark },
   vendorRow: {
     flexDirection: 'row',
     alignItems: 'center',

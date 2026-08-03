@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -12,26 +12,31 @@ import { api } from '@/api';
 import { ErrorView } from '@/components/StatusViews';
 import { IMG } from '@/config';
 import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { addDays, dayNum, startOfWeek, today, weekdayShort, weekDays } from '@/date';
-import { colors, radius, shadow, shadowStrong } from '@/theme';
+import { radius, shadow, shadowStrong, type ThemeColors } from '@/theme';
 import type { MealSlot, PlannedMeal } from '@/types';
-
-const SLOTS: { key: MealSlot; label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string }[] = [
-  { key: 'BREAKFAST', label: 'Breakfast', icon: 'cafe', tint: colors.accentDark, bg: colors.accentLight },
-  { key: 'LUNCH', label: 'Lunch', icon: 'restaurant', tint: colors.brandDark, bg: colors.brandLight },
-  { key: 'DINNER', label: 'Dinner', icon: 'moon', tint: colors.blueDark, bg: colors.blueLight },
-  { key: 'SNACK', label: 'Snacks', icon: 'nutrition', tint: colors.success, bg: '#E4F7EC' },
-];
 
 export default function Planner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [selected, setSelected] = useState(today());
   const weekStart = startOfWeek(selected);
   const days = weekDays(weekStart);
   const weekEnd = days[6];
+
+  const SLOTS: { key: MealSlot; label: string; icon: keyof typeof Ionicons.glyphMap; tint: string; bg: string }[] = [
+    { key: 'BREAKFAST', label: t('nutrition.breakfast'), icon: 'cafe', tint: colors.accentDark, bg: colors.accentLight },
+    { key: 'LUNCH', label: t('nutrition.lunch'), icon: 'restaurant', tint: colors.brandDark, bg: colors.brandLight },
+    { key: 'DINNER', label: t('nutrition.dinner'), icon: 'moon', tint: colors.blueDark, bg: colors.blueLight },
+    { key: 'SNACK', label: t('nutrition.snacks'), icon: 'nutrition', tint: colors.success, bg: '#E4F7EC' },
+  ];
 
   const meals = useQuery({
     queryKey: ['plan', weekStart, weekEnd],
@@ -45,17 +50,17 @@ export default function Planner() {
   const weekTotal = (meals.data ?? []).reduce((sum, m) => sum + m.calories, 0);
 
   const del = (m: PlannedMeal) => {
-    Alert.alert('Delete meal', `Remove “${m.title}”?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('nutrition.deleteMealTitle'), `${t('nutrition.removeMeal')} “${m.title}”?`, [
+      { text: t('nutrition.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('nutrition.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await api.del(`/plan/${m.id}`);
             refresh();
           } catch {
-            toast.error("Couldn't delete that meal. Try again.");
+            toast.error(t('nutrition.mealDeleteError'));
           }
         },
       },
@@ -66,9 +71,9 @@ export default function Planner() {
     try {
       await api.post(`/plan/${m.id}/duplicate`, { date: addDays(m.date, 1), slot: m.slot });
       refresh();
-      toast.success('Copied to tomorrow.');
+      toast.success(t('nutrition.copiedTomorrow'));
     } catch {
-      toast.error("Couldn't copy that meal. Try again.");
+      toast.error(t('nutrition.mealCopyError'));
     }
   };
 
@@ -77,16 +82,16 @@ export default function Planner() {
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       refresh();
-      toast.success('Week planned ✨ — built a balanced week from your recipes.');
+      toast.success(t('nutrition.weekPlanned'));
     },
-    onError: (e: any) => toast.error(e?.message ?? 'Could not generate the plan. Please try again.'),
+    onError: (e: any) => toast.error(e?.message ?? t('nutrition.generateError')),
   });
 
   if (meals.isError) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 40 }}>
         <ErrorView
-          message="We couldn't load your meal plan. Check your connection and try again."
+          message={t('nutrition.plannerLoadError')}
           onRetry={() => meals.refetch()}
         />
       </View>
@@ -102,12 +107,12 @@ export default function Planner() {
             <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={styles.heroIcon}>
               <Ionicons name="chevron-back" size={22} color="#FFF" />
             </TouchableOpacity>
-            <Text style={styles.heroTitle}>Meal planner</Text>
+            <Text style={styles.heroTitle}>{t('nutrition.plannerTitle')}</Text>
             <TouchableOpacity onPress={() => router.push('/tracker')} hitSlop={10} style={styles.heroIcon}>
               <Ionicons name="stats-chart" size={18} color="#FFF" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.heroWeek}>{weekTotal.toLocaleString()} kcal planned this week</Text>
+          <Text style={styles.heroWeek}>{weekTotal.toLocaleString()} {t('nutrition.kcalPlannedWeek')}</Text>
 
           {/* week strip */}
           <View style={styles.weekStrip}>
@@ -130,13 +135,13 @@ export default function Planner() {
         <View style={styles.body}>
           <View style={styles.dayHeadRow}>
             <View>
-              <Text style={styles.dayHeadLabel}>{selected === today() ? 'Today' : weekdayShort(selected)}</Text>
+              <Text style={styles.dayHeadLabel}>{selected === today() ? t('nutrition.today') : weekdayShort(selected)}</Text>
               <Text style={styles.dayHeadTotal}>{dayTotal} kcal</Text>
             </View>
             <TouchableOpacity style={styles.genBtn} onPress={() => generate.mutate()} disabled={generate.isPending}>
               <LinearGradient colors={[colors.accent, colors.accentDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.genGrad}>
                 <Ionicons name="sparkles" size={15} color="#FFF" />
-                <Text style={styles.genText}>{generate.isPending ? 'Planning…' : 'Generate week'}</Text>
+                <Text style={styles.genText}>{generate.isPending ? t('nutrition.planning') : t('nutrition.generateWeek')}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -161,7 +166,7 @@ export default function Planner() {
                   style={styles.slotEmpty}
                   onPress={() => router.push({ pathname: '/add-meal', params: { date: selected, slot: slot.key } })}
                 >
-                  <Text style={styles.slotEmptyText}>Tap + to add a {slot.label.toLowerCase()} meal</Text>
+                  <Text style={styles.slotEmptyText}>{t('nutrition.tapPlusAdd')} {slot.label.toLowerCase()} {t('nutrition.mealLower')}</Text>
                 </TouchableOpacity>
               ) : (
                 bySlot(slot.key).map((m) => (
@@ -201,43 +206,44 @@ export default function Planner() {
   );
 }
 
-const styles = StyleSheet.create({
-  hero: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingHorizontal: 18, paddingBottom: 18, ...shadowStrong },
-  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  heroTitle: { color: '#FFF', fontSize: 17, fontWeight: '800' },
-  heroWeek: { color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600', textAlign: 'center', marginTop: 10 },
-  weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, gap: 3 },
-  dayCell: { flex: 1, alignItems: 'center', gap: 5 },
-  dayPill: { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: 14, width: '100%', gap: 2 },
-  dayActive: { backgroundColor: '#FFF' },
-  dow: { fontSize: 10.5, color: 'rgba(255,255,255,0.85)', fontWeight: '700' },
-  dowActive: { color: colors.blueDark },
-  dnum: { fontSize: 15, fontWeight: '800', color: '#FFF' },
-  dnumActive: { color: colors.ink },
-  dot: { width: 5, height: 5, borderRadius: 3 },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    hero: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, paddingHorizontal: 18, paddingBottom: 18, ...shadowStrong },
+    heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    heroIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+    heroTitle: { color: '#FFF', fontSize: 17, fontWeight: '800' },
+    heroWeek: { color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600', textAlign: 'center', marginTop: 10 },
+    weekStrip: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, gap: 3 },
+    dayCell: { flex: 1, alignItems: 'center', gap: 5 },
+    dayPill: { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: 14, width: '100%', gap: 2 },
+    dayActive: { backgroundColor: '#FFF' },
+    dow: { fontSize: 10.5, color: 'rgba(255,255,255,0.85)', fontWeight: '700' },
+    dowActive: { color: colors.blueDark },
+    dnum: { fontSize: 15, fontWeight: '800', color: '#FFF' },
+    dnumActive: { color: colors.ink },
+    dot: { width: 5, height: 5, borderRadius: 3 },
 
-  body: { padding: 20, gap: 6 },
-  dayHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  dayHeadLabel: { fontSize: 12.5, color: colors.inkSoft, fontWeight: '600' },
-  dayHeadTotal: { fontSize: 22, fontWeight: '800', color: colors.ink },
-  genBtn: { borderRadius: 999, overflow: 'hidden', ...shadow },
-  genGrad: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 11 },
-  genText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+    body: { padding: 20, gap: 6 },
+    dayHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    dayHeadLabel: { fontSize: 12.5, color: colors.inkSoft, fontWeight: '600' },
+    dayHeadTotal: { fontSize: 22, fontWeight: '800', color: colors.ink },
+    genBtn: { borderRadius: 999, overflow: 'hidden', ...shadow },
+    genGrad: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 11 },
+    genText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
 
-  slotBlock: { marginTop: 16 },
-  slotHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
-  slotIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  slotLabel: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.ink },
-  slotKcal: { fontSize: 12, color: colors.inkFaint, fontWeight: '700', marginRight: 6 },
-  addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  slotEmpty: { paddingVertical: 14, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.surfaceAlt },
-  slotEmptyText: { fontSize: 12.5, color: colors.inkFaint, fontWeight: '500' },
-  mealRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderRadius: radius.md, padding: 10, marginBottom: 8, ...shadow },
-  mealMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  mealImg: { width: 44, height: 44, borderRadius: 11, backgroundColor: colors.surfaceAlt },
-  mealImgFallback: { alignItems: 'center', justifyContent: 'center' },
-  mealTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  mealMeta: { fontSize: 11.5, color: colors.inkSoft, marginTop: 2 },
-  iconBtn: { padding: 5 },
-});
+    slotBlock: { marginTop: 16 },
+    slotHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
+    slotIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    slotLabel: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.ink },
+    slotKcal: { fontSize: 12, color: colors.inkFaint, fontWeight: '700', marginRight: 6 },
+    addBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    slotEmpty: { paddingVertical: 14, paddingHorizontal: 14, borderRadius: radius.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.surfaceAlt },
+    slotEmptyText: { fontSize: 12.5, color: colors.inkFaint, fontWeight: '500' },
+    mealRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderRadius: radius.md, padding: 10, marginBottom: 8, ...shadow },
+    mealMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11 },
+    mealImg: { width: 44, height: 44, borderRadius: 11, backgroundColor: colors.surfaceAlt },
+    mealImgFallback: { alignItems: 'center', justifyContent: 'center' },
+    mealTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
+    mealMeta: { fontSize: 11.5, color: colors.inkSoft, marginTop: 2 },
+    iconBtn: { padding: 5 },
+  });

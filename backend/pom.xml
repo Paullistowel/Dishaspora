@@ -27,6 +27,14 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
+    <!-- Reads a local .env into the Spring Environment so `cp .env.example .env`
+         works for local dev (keys/secrets). In production (Railway) real env vars
+         take precedence; a missing .env is silently ignored. -->
+    <dependency>
+      <groupId>me.paulschwarz</groupId>
+      <artifactId>spring-dotenv</artifactId>
+      <version>4.0.0</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -85,6 +93,15 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!-- Local `mvn spring-boot:run` uses the embedded H2 profile so no
+               Postgres is needed for development. This ONLY affects the run goal;
+               the packaged jar (java -jar, used on Railway) still defaults to
+               Postgres via SPRING_DATASOURCE_* env vars. -->
+          <profiles>
+            <profile>h2</profile>
+          </profiles>
+        </configuration>
       </plugin>
     </plugins>
   </build>

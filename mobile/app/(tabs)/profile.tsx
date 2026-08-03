@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   RefreshControl,
@@ -22,8 +22,10 @@ import { Skeleton } from '@/components/Skeleton';
 import StampCard from '@/components/StampCard';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
-import { colors, shadow } from '@/theme';
+import { shadow, type ThemeColors } from '@/theme';
 import type { Passport, Recipe } from '@/types';
 
 function CountUp({ value, style }: { value: number; style?: any }) {
@@ -57,6 +59,8 @@ function Row({
   onPress?: () => void;
   danger?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <PressableScale
       onPress={onPress}
@@ -67,7 +71,7 @@ function Row({
       }
     >
       <View style={styles.row}>
-        <View style={[styles.rowIcon, danger && { backgroundColor: '#FDECEC' }]}>
+        <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
           <Ionicons name={icon} size={17} color={danger ? colors.danger : colors.brandDark} />
         </View>
         <Text style={[styles.rowLabel, danger && { color: colors.danger }]}>{label}</Text>
@@ -87,9 +91,15 @@ export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
-  const [segment, setSegment] = useState('My recipes');
+  // Store the tab index (stable) not the localized label, so language switches
+  // don't break the active-segment comparison.
+  const [segIndex, setSegIndex] = useState(0);
   const { data: unread = 0 } = useUnreadCount();
+  const segments = [t('profile.myRecipes'), t('profile.myProfile')];
 
   const passport = useQuery({
     queryKey: ['passport'],
@@ -101,10 +111,10 @@ export default function Profile() {
   });
 
   const confirmLogout = () =>
-    Alert.alert('Log out', 'Sign out of Dishaspora?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('settings.logoutTitle'), t('settings.logoutMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Log out',
+        text: t('settings.logout'),
         style: 'destructive',
         onPress: async () => {
           await logout();
@@ -114,6 +124,7 @@ export default function Profile() {
     ]);
 
   const savedFour = (saved.data ?? []).slice(0, 4);
+  const countryLabel = user?.country === 'NG' ? t('country.nigeria') : t('country.ghana');
 
   return (
     <ScrollView
@@ -136,32 +147,36 @@ export default function Profile() {
           <View style={styles.emailRow}>
             <Flag country={user?.country ?? 'GH'} size={12} />
             <Text style={styles.email} numberOfLines={1}>
-              {user?.country === 'NG' ? 'Nigeria' : 'Ghana'} · {user?.email}
+              {countryLabel} · {user?.email}
             </Text>
           </View>
         </View>
         {user?.premium ? (
           <View style={styles.premiumChip}>
-            <Text style={styles.premiumChipText}>Premium</Text>
+            <Text style={styles.premiumChipText}>{t('profile.premium')}</Text>
           </View>
         ) : null}
       </Animated.View>
 
       <View style={styles.segmentWrap}>
-        <SegmentChips segments={['My recipes', 'My profile']} value={segment} onChange={setSegment} />
+        <SegmentChips
+          segments={segments}
+          value={segments[segIndex]}
+          onChange={(v) => setSegIndex(Math.max(0, segments.indexOf(v)))}
+        />
       </View>
 
-      {segment === 'My recipes' ? (
+      {segIndex === 0 ? (
         <View style={styles.body}>
           {/* Passport */}
           <Animated.View entering={FadeInDown.duration(320)}>
             <View style={styles.passportHeader}>
-              <Text style={styles.sectionTitle}>Food Passport</Text>
+              <Text style={styles.sectionTitle}>{t('profile.foodPassport')}</Text>
               <View style={styles.passportStats}>
                 <CountUp value={passport.data?.totalCooked ?? 0} style={styles.statNumber} />
-                <Text style={styles.statLabel}> dishes · </Text>
+                <Text style={styles.statLabel}> {t('profile.dishes')} · </Text>
                 <CountUp value={passport.data?.countriesStamped ?? 0} style={styles.statNumber} />
-                <Text style={styles.statLabel}> stamps</Text>
+                <Text style={styles.statLabel}> {t('profile.stamps')}</Text>
               </View>
             </View>
             {passport.isLoading ? (
@@ -188,9 +203,9 @@ export default function Profile() {
           <Animated.View entering={FadeInDown.delay(120).duration(320)}>
             <PressableScale tilt onPress={() => router.push('/saved')}>
               <View style={styles.favCard}>
-                <Text style={styles.favTitle}>My favorites</Text>
+                <Text style={styles.favTitle}>{t('profile.favorites')}</Text>
                 {savedFour.length === 0 ? (
-                  <Text style={styles.favEmpty}>Tap the heart on any recipe to save it here.</Text>
+                  <Text style={styles.favEmpty}>{t('profile.favEmpty')}</Text>
                 ) : (
                   <View style={styles.favGrid}>
                     {savedFour.map((recipe) => (
@@ -212,32 +227,32 @@ export default function Profile() {
           <Animated.View entering={FadeInDown.duration(320)} style={styles.rowsCard}>
             <Row
               icon="notifications-outline"
-              label="Notifications"
+              label={t('settings.notifications')}
               badge={unread}
               onPress={() => router.push('/notifications')}
             />
-            <Row icon="receipt-outline" label="My orders" onPress={() => router.push('/orders')} />
+            <Row icon="receipt-outline" label={t('profile.orders')} onPress={() => router.push('/orders')} />
             <Row
               icon="chatbubbles-outline"
-              label="Messages"
+              label={t('profile.messages')}
               onPress={() => router.push('/chat')}
             />
             <Row
               icon="sparkles-outline"
-              label={user?.premium ? 'Premium subscription' : 'Go Premium'}
-              value={user?.premium ? 'Active' : undefined}
+              label={user?.premium ? t('profile.premiumSub') : t('profile.goPremium')}
+              value={user?.premium ? t('profile.active') : undefined}
               onPress={() => router.push('/subscription')}
             />
             {user?.vendorId ? (
               <Row
                 icon="storefront-outline"
-                label="Vendor dashboard"
+                label={t('profile.vendorDashboard')}
                 onPress={() => router.push('/dashboard')}
               />
             ) : (
               <Row
                 icon="storefront-outline"
-                label="Become a vendor"
+                label={t('profile.becomeVendor')}
                 onPress={() => router.push('/vendor-apply')}
               />
             )}
@@ -246,21 +261,21 @@ export default function Profile() {
           <Animated.View entering={FadeInDown.delay(100).duration(320)} style={styles.rowsCard}>
             <Row
               icon="create-outline"
-              label="Edit profile"
+              label={t('settings.editProfile')}
               onPress={() => router.push('/edit-profile')}
             />
             <Row
               icon="flag-outline"
-              label="Country"
-              value={user?.country === 'NG' ? 'Nigeria' : 'Ghana'}
+              label={t('profile.country')}
+              value={countryLabel}
               onPress={() => router.push('/edit-profile')}
             />
             <Row
               icon="settings-outline"
-              label="Settings"
+              label={t('settings.title')}
               onPress={() => router.push('/settings')}
             />
-            <Row icon="log-out-outline" label="Log out" danger onPress={confirmLogout} />
+            <Row icon="log-out-outline" label={t('settings.logout')} danger onPress={confirmLogout} />
           </Animated.View>
         </View>
       )}
@@ -268,85 +283,87 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 20,
-  },
-  name: { fontSize: 19, fontWeight: '700', color: colors.ink },
-  emailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-  email: { fontSize: 12.5, color: colors.inkSoft, flexShrink: 1 },
-  premiumChip: {
-    backgroundColor: colors.brandLight,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  premiumChipText: { color: colors.brandDark, fontSize: 11, fontWeight: '700' },
-  segmentWrap: { paddingHorizontal: 20, marginTop: 20 },
-  body: { paddingHorizontal: 20, marginTop: 20, gap: 20 },
-  passportHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionTitle: { fontSize: 17, fontWeight: '600', color: colors.ink },
-  passportStats: { flexDirection: 'row', alignItems: 'baseline' },
-  statNumber: { fontSize: 15, fontWeight: '800', color: colors.brandDark },
-  statLabel: { fontSize: 12, color: colors.inkSoft },
-  stampGrid: { flexDirection: 'row', gap: 12 },
-  stampGridWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  stampCell: { width: '47%', flexGrow: 1 },
-  favCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    ...shadow,
-  },
-  favTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 10 },
-  favEmpty: { fontSize: 12.5, color: colors.inkSoft, paddingBottom: 6 },
-  favGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  favImg: {
-    width: '47%',
-    flexGrow: 1,
-    aspectRatio: 1.4,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceAlt,
-  },
-  rowsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    ...shadow,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 13,
-  },
-  rowIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: colors.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowLabel: { flex: 1, fontSize: 14.5, fontWeight: '500', color: colors.ink },
-  rowValue: { fontSize: 13, color: colors.inkSoft },
-  badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      paddingHorizontal: 20,
+    },
+    name: { fontSize: 19, fontWeight: '700', color: colors.ink },
+    emailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+    email: { fontSize: 12.5, color: colors.inkSoft, flexShrink: 1 },
+    premiumChip: {
+      backgroundColor: colors.brandLight,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    premiumChipText: { color: colors.brandDark, fontSize: 11, fontWeight: '700' },
+    segmentWrap: { paddingHorizontal: 20, marginTop: 20 },
+    body: { paddingHorizontal: 20, marginTop: 20, gap: 20 },
+    passportHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    sectionTitle: { fontSize: 17, fontWeight: '600', color: colors.ink },
+    passportStats: { flexDirection: 'row', alignItems: 'baseline' },
+    statNumber: { fontSize: 15, fontWeight: '800', color: colors.brandDark },
+    statLabel: { fontSize: 12, color: colors.inkSoft },
+    stampGrid: { flexDirection: 'row', gap: 12 },
+    stampGridWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    stampCell: { width: '47%', flexGrow: 1 },
+    favCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 14,
+      ...shadow,
+    },
+    favTitle: { fontSize: 15, fontWeight: '700', color: colors.ink, marginBottom: 10 },
+    favEmpty: { fontSize: 12.5, color: colors.inkSoft, paddingBottom: 6 },
+    favGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    favImg: {
+      width: '47%',
+      flexGrow: 1,
+      aspectRatio: 1.4,
+      borderRadius: 14,
+      backgroundColor: colors.surfaceAlt,
+    },
+    rowsCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 4,
+      ...shadow,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 13,
+    },
+    rowIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor: colors.brandLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowIconDanger: { backgroundColor: colors.accentLight },
+    rowLabel: { flex: 1, fontSize: 14.5, fontWeight: '500', color: colors.ink },
+    rowValue: { fontSize: 13, color: colors.inkSoft },
+    badge: {
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      paddingHorizontal: 6,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  });

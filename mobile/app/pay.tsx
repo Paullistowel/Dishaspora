@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -12,9 +12,11 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { useToast } from '@/context/ToastContext';
 import { formatMoney } from '@/money';
-import { colors, shadow } from '@/theme';
+import { shadow, type ThemeColors } from '@/theme';
 import type { Currency, Order, User } from '@/types';
 
 // Paystack redirects to one of these once the transaction terminates. We watch
@@ -36,6 +38,7 @@ export default function Pay() {
   const params = useLocalSearchParams<{
     kind: 'order' | 'subscription';
     orderId?: string;
+    vendorId?: string;
     reference: string;
     url: string;
     amountMinor: string;
@@ -43,6 +46,9 @@ export default function Pay() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const cart = useCart();
   const { refreshUser } = useAuth();
@@ -72,8 +78,13 @@ export default function Pay() {
     },
     onSuccess: async () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      // Clear the cart ONLY now that payment is confirmed — never before.
-      if (params.kind === 'order') cart.clear();
+      // Clear the paid items ONLY now that payment is confirmed — never before.
+      // Per-vendor checkout clears just that vendor's items so the rest of a
+      // multi-vendor cart survives; fall back to clearing all if no vendor.
+      if (params.kind === 'order') {
+        if (params.vendorId) cart.removeVendor(Number(params.vendorId));
+        else cart.clear();
+      }
       if (params.kind === 'subscription') await refreshUser();
       queryClient.invalidateQueries();
       setDone(true);
@@ -82,10 +93,7 @@ export default function Pay() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       // Allow another attempt — the charge may not have completed yet.
       verifiedRef.current = false;
-      const msg =
-        e instanceof ApiError
-          ? e.message
-          : "We couldn't confirm your payment yet. If you completed it, tap “I have completed payment”.";
+      const msg = e instanceof ApiError ? e.message : t('cart.verifyError');
       toast.error(msg);
     },
   });
@@ -97,9 +105,9 @@ export default function Pay() {
   };
 
   const cancel = () => {
-    Alert.alert('Cancel payment?', 'Your order is saved and stays unpaid — you can pay for it later from your orders.', [
-      { text: 'Keep paying', style: 'cancel' },
-      { text: 'Cancel payment', style: 'destructive', onPress: () => router.back() },
+    Alert.alert(t('cart.cancelPaymentTitle'), t('cart.cancelPaymentMessage'), [
+      { text: t('cart.keepPaying'), style: 'cancel' },
+      { text: t('cart.cancelPayment'), style: 'destructive', onPress: () => router.back() },
     ]);
   };
 
@@ -107,13 +115,13 @@ export default function Pay() {
   if (!paramsValid) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Checkout" />
+        <ScreenHeader title={t('cart.checkoutTitle')} />
         <View style={styles.center}>
           <Text style={styles.successSub}>
-            This payment session is no longer valid. Start checkout again from your cart.
+            {t('cart.sessionInvalid')}
           </Text>
           <PrimaryButton
-            title="Back"
+            title={t('cart.back')}
             variant="outline"
             onPress={() => router.back()}
             style={{ alignSelf: 'stretch', marginTop: 20 }}
@@ -132,21 +140,21 @@ export default function Pay() {
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(150)} style={{ alignItems: 'center' }}>
           <Text style={styles.successTitle}>
-            {params.kind === 'subscription' ? 'Welcome to Premium!' : 'Payment successful'}
+            {params.kind === 'subscription' ? t('cart.welcomePremium') : t('cart.paymentSuccessful')}
           </Text>
           <Text style={styles.successSub}>
             {params.kind === 'subscription'
-              ? 'Ask Dishaspora, video guides and vendor chat are now unlocked.'
-              : `Your order is confirmed. Reference ${params.reference}.`}
+              ? t('cart.premiumUnlocked')
+              : `${t('cart.orderConfirmed')} ${t('cart.reference')} ${params.reference}.`}
           </Text>
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(280)} style={{ alignSelf: 'stretch', gap: 12, marginTop: 32 }}>
           {params.kind === 'order' ? (
-            <PrimaryButton title="View my orders" onPress={() => router.replace('/orders')} />
+            <PrimaryButton title={t('cart.viewMyOrders')} onPress={() => router.replace('/orders')} />
           ) : (
-            <PrimaryButton title="Ask Dishaspora" onPress={() => router.replace('/assistant')} />
+            <PrimaryButton title={t('cart.askDishaspora')} onPress={() => router.replace('/assistant')} />
           )}
-          <PrimaryButton title="Back to home" variant="outline" onPress={() => router.dismissAll()} />
+          <PrimaryButton title={t('cart.backToHome')} variant="outline" onPress={() => router.dismissAll()} />
         </Animated.View>
       </View>
     );
@@ -156,31 +164,29 @@ export default function Pay() {
   if (isSandbox) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Sandbox checkout" />
+        <ScreenHeader title={t('cart.sandboxCheckout')} />
         <View style={styles.center}>
           <View style={styles.mockCard}>
             <View style={styles.sandboxTag}>
               <Ionicons name="flask-outline" size={13} color={colors.blueDark} />
-              <Text style={styles.sandboxTagText}>Sandbox — no real charge</Text>
+              <Text style={styles.sandboxTagText}>{t('cart.sandboxTag')}</Text>
             </View>
             <View style={styles.mockLogo}>
               <Ionicons name="card-outline" size={26} color={colors.accentDark} />
             </View>
             <Text style={styles.mockAmount}>{formatMoney(amount, currency)}</Text>
-            <Text style={styles.mockRef}>Ref {params.reference}</Text>
+            <Text style={styles.mockRef}>{t('cart.ref')} {params.reference}</Text>
             <Text style={styles.mockNote}>
-              This build runs offline against demo data. Confirm to complete the full order
-              journey. Point the app at a live backend (EXPO_PUBLIC_DEMO_MODE=false) for real
-              Paystack payments.
+              {t('cart.sandboxNotePre')} (EXPO_PUBLIC_DEMO_MODE=false) {t('cart.sandboxNotePost')}
             </Text>
             <PrimaryButton
-              title={`Pay ${formatMoney(amount, currency)}`}
+              title={`${t('cart.pay')} ${formatMoney(amount, currency)}`}
               loading={verify.isPending}
               onPress={runVerify}
               style={{ alignSelf: 'stretch', marginTop: 22 }}
             />
             <PrimaryButton
-              title="Cancel"
+              title={t('common.cancel')}
               variant="outline"
               onPress={() => router.back()}
               style={{ alignSelf: 'stretch', marginTop: 10 }}
@@ -194,7 +200,7 @@ export default function Pay() {
   // ---- Live Paystack ----
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-      <ScreenHeader title="Secure checkout" onBack={cancel} />
+      <ScreenHeader title={t('cart.secureCheckout')} onBack={cancel} />
       <View style={{ flex: 1 }}>
         <WebView
           source={{ uri: url }}
@@ -216,100 +222,101 @@ export default function Pay() {
           <View style={styles.webLoading} pointerEvents="none">
             <ActivityIndicator size="large" color={colors.brandDark} />
             <Text style={styles.webLoadingText}>
-              {verify.isPending ? 'Confirming payment…' : 'Loading secure checkout…'}
+              {verify.isPending ? t('cart.confirmingPayment') : t('cart.loadingCheckout')}
             </Text>
           </View>
         ) : null}
       </View>
       <View style={{ padding: 16, paddingBottom: Math.max(insets.bottom, 16), gap: 10 }}>
         <PrimaryButton
-          title="I have completed payment"
+          title={t('cart.completedPayment')}
           variant="outline"
           loading={verify.isPending}
           onPress={runVerify}
         />
         <Text style={styles.helpText} onPress={cancel}>
-          Cancel payment
+          {t('cart.cancelPayment')}
         </Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 28,
-    backgroundColor: colors.background,
-  },
-  successBadge: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 22,
-  },
-  successTitle: { fontSize: 22, fontWeight: '800', color: colors.ink },
-  successSub: {
-    fontSize: 14,
-    color: colors.inkSoft,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 21,
-  },
-  mockCard: {
-    alignSelf: 'stretch',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    padding: 26,
-    alignItems: 'center',
-    ...shadow,
-  },
-  sandboxTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.blueLight,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 14,
-  },
-  sandboxTagText: { fontSize: 11.5, fontWeight: '700', color: colors.blueDark },
-  mockLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    backgroundColor: colors.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mockAmount: { fontSize: 30, fontWeight: '800', color: colors.ink, marginTop: 16 },
-  mockRef: { fontSize: 12.5, color: colors.inkFaint, marginTop: 4 },
-  mockNote: {
-    fontSize: 13,
-    color: colors.inkSoft,
-    textAlign: 'center',
-    marginTop: 14,
-    lineHeight: 19,
-  },
-  webLoading: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    gap: 12,
-  },
-  webLoadingText: { fontSize: 14, color: colors.inkSoft, fontWeight: '600' },
-  helpText: {
-    fontSize: 13,
-    color: colors.inkFaint,
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingVertical: 4,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 28,
+      backgroundColor: colors.background,
+    },
+    successBadge: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: colors.success,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 22,
+    },
+    successTitle: { fontSize: 22, fontWeight: '800', color: colors.ink },
+    successSub: {
+      fontSize: 14,
+      color: colors.inkSoft,
+      textAlign: 'center',
+      marginTop: 8,
+      lineHeight: 21,
+    },
+    mockCard: {
+      alignSelf: 'stretch',
+      backgroundColor: colors.card,
+      borderRadius: 28,
+      padding: 26,
+      alignItems: 'center',
+      ...shadow,
+    },
+    sandboxTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.blueLight,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      marginBottom: 14,
+    },
+    sandboxTagText: { fontSize: 11.5, fontWeight: '700', color: colors.blueDark },
+    mockLogo: {
+      width: 56,
+      height: 56,
+      borderRadius: 20,
+      backgroundColor: colors.brandLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    mockAmount: { fontSize: 30, fontWeight: '800', color: colors.ink, marginTop: 16 },
+    mockRef: { fontSize: 12.5, color: colors.inkFaint, marginTop: 4 },
+    mockNote: {
+      fontSize: 13,
+      color: colors.inkSoft,
+      textAlign: 'center',
+      marginTop: 14,
+      lineHeight: 19,
+    },
+    webLoading: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.9)',
+      gap: 12,
+    },
+    webLoadingText: { fontSize: 14, color: colors.inkSoft, fontWeight: '600' },
+    helpText: {
+      fontSize: 13,
+      color: colors.inkFaint,
+      fontWeight: '600',
+      textAlign: 'center',
+      paddingVertical: 4,
+    },
+  });

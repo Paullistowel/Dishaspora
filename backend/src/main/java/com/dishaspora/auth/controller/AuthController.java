@@ -32,8 +32,11 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
+    public ResponseEntity<MessageResponse> register(@Valid @RequestBody RegisterRequest request) {
+        authService.register(request);
+        // No session is issued — the user must verify their email, then sign in.
+        return ResponseEntity.status(HttpStatus.CREATED).body(new MessageResponse(
+                "Account created. We've sent a verification link to your email — verify it, then sign in."));
     }
 
     @PostMapping("/login")

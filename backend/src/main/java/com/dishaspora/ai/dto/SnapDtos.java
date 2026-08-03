@@ -27,6 +27,8 @@ public final class SnapDtos {
             List<SnapIngredient> ingredients,
             List<SnapStep> steps,
             SnapNutrition nutrition,
+            List<String> allergens,        // common allergens present in the dish
+            List<String> allergenWarnings, // subset of `allergens` the user is allergic to
             List<RecipeDto> matchedRecipes) {}
 
     // --- Ingredient scan → recipe recommendations ---

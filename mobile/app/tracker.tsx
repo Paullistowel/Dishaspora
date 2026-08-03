@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -22,14 +22,19 @@ import { api } from '@/api';
 import { ErrorView } from '@/components/StatusViews';
 import { IMG } from '@/config';
 import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { addDays, prettyDate, today, weekdayShort } from '@/date';
-import { colors, radius, shadow, shadowStrong } from '@/theme';
+import { radius, shadow, shadowStrong, type ThemeColors } from '@/theme';
 import type { DaySummary, DayTotals, PlannedMeal } from '@/types';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 /** Big animated calorie ring rendered on the gradient hero. */
 function CalorieRing({ consumed, goal }: { consumed: number; goal: number }) {
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const size = 190;
   const stroke = 16;
   const r = (size - stroke) / 2;
@@ -59,15 +64,17 @@ function CalorieRing({ consumed, goal }: { consumed: number; goal: number }) {
         />
       </Svg>
       <Text style={styles.ringValue}>{left}</Text>
-      <Text style={styles.ringUnit}>kcal left</Text>
+      <Text style={styles.ringUnit}>{t('nutrition.kcalLeft')}</Text>
       <View style={styles.ringChip}>
-        <Text style={styles.ringChipText}>{consumed} eaten</Text>
+        <Text style={styles.ringChipText}>{consumed} {t('nutrition.eatenLower')}</Text>
       </View>
     </View>
   );
 }
 
 function MacroCard({ label, p, tint, delay }: { label: string; p: { consumed: number; goal: number }; tint: string; delay: number }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const pct = p.goal > 0 ? Math.min(1, p.consumed / p.goal) : 0;
   const w = useSharedValue(0);
   useEffect(() => {
@@ -90,6 +97,8 @@ function MacroCard({ label, p, tint, delay }: { label: string; p: { consumed: nu
 }
 
 function ChartBar({ d, maxCal, selected, delay }: { d: DayTotals; maxCal: number; selected: boolean; delay: number }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const h = useSharedValue(0);
   const target = Math.min(1, d.calories / maxCal);
   useEffect(() => {
@@ -118,6 +127,9 @@ export default function Tracker() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [date, setDate] = React.useState(today());
   const weekStart = addDays(date, -6);
 
@@ -137,7 +149,7 @@ export default function Tracker() {
       await api.post<DaySummary>('/diary/water', { date, milliliters: delta });
       refresh();
     } catch {
-      toast.error("Couldn't update your water log. Try again.");
+      toast.error(t('nutrition.waterUpdateError'));
     }
   };
   const toggleEaten = async (m: PlannedMeal) => {
@@ -146,7 +158,7 @@ export default function Tracker() {
       await api.post(`/plan/${m.id}/eaten`, { eaten: !m.eaten });
       refresh();
     } catch {
-      toast.error("Couldn't update that meal. Try again.");
+      toast.error(t('nutrition.mealUpdateError'));
     }
   };
 
@@ -155,7 +167,7 @@ export default function Tracker() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 40 }}>
         <ErrorView
-          message="We couldn't load your nutrition for today. Check your connection and try again."
+          message={t('nutrition.trackerLoadError')}
           onRetry={() => summary.refetch()}
         />
       </View>
@@ -181,7 +193,7 @@ export default function Tracker() {
               <TouchableOpacity onPress={() => setDate(addDays(date, -1))} hitSlop={10}>
                 <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.9)" />
               </TouchableOpacity>
-              <Text style={styles.heroDate}>{date === today() ? 'Today' : prettyDate(date)}</Text>
+              <Text style={styles.heroDate}>{date === today() ? t('nutrition.today') : prettyDate(date)}</Text>
               <TouchableOpacity onPress={() => date < today() && setDate(addDays(date, 1))} hitSlop={10} disabled={date >= today()}>
                 <Ionicons name="chevron-forward" size={18} color={date >= today() ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)'} />
               </TouchableOpacity>
@@ -195,11 +207,11 @@ export default function Tracker() {
             <CalorieRing consumed={s?.caloriesConsumed ?? 0} goal={s?.calorieGoal ?? 2000} />
           </View>
           <View style={styles.heroStats}>
-            <HeroStat label="Goal" value={s?.calorieGoal ?? 2000} />
+            <HeroStat label={t('nutrition.goal')} value={s?.calorieGoal ?? 2000} />
             <View style={styles.heroDivider} />
-            <HeroStat label="Eaten" value={s?.caloriesConsumed ?? 0} />
+            <HeroStat label={t('nutrition.eaten')} value={s?.caloriesConsumed ?? 0} />
             <View style={styles.heroDivider} />
-            <HeroStat label="Planned" value={s?.caloriesPlanned ?? 0} />
+            <HeroStat label={t('nutrition.planned')} value={s?.caloriesPlanned ?? 0} />
           </View>
         </LinearGradient>
 
@@ -208,9 +220,9 @@ export default function Tracker() {
           <View style={styles.macroRow}>
             {s ? (
               <>
-                <MacroCard label="Protein" p={s.protein} tint={colors.brandDark} delay={80} />
-                <MacroCard label="Carbs" p={s.carbs} tint={colors.blueDark} delay={160} />
-                <MacroCard label="Fat" p={s.fat} tint={colors.accent} delay={240} />
+                <MacroCard label={t('nutrition.protein')} p={s.protein} tint={colors.brandDark} delay={80} />
+                <MacroCard label={t('nutrition.carbs')} p={s.carbs} tint={colors.blueDark} delay={160} />
+                <MacroCard label={t('nutrition.fat')} p={s.fat} tint={colors.accent} delay={240} />
               </>
             ) : null}
           </View>
@@ -222,7 +234,7 @@ export default function Tracker() {
                 <View style={[styles.iconBadge, { backgroundColor: colors.blueLight }]}>
                   <Ionicons name="water" size={16} color={colors.blueDark} />
                 </View>
-                <Text style={styles.cardTitle}>Water</Text>
+                <Text style={styles.cardTitle}>{t('nutrition.water')}</Text>
               </View>
               <Text style={styles.waterMl}>{s?.waterMl ?? 0} / {s?.waterGoalMl ?? 2000} ml</Text>
             </View>
@@ -252,7 +264,7 @@ export default function Tracker() {
               <View style={[styles.iconBadge, { backgroundColor: colors.brandLight }]}>
                 <Ionicons name="bar-chart" size={16} color={colors.brandDark} />
               </View>
-              <Text style={styles.cardTitle}>Last 7 days</Text>
+              <Text style={styles.cardTitle}>{t('nutrition.last7Days')}</Text>
             </View>
             <View style={styles.chart}>
               {(week.data ?? []).map((d, i) => (
@@ -263,16 +275,16 @@ export default function Tracker() {
 
           {/* Meals */}
           <View style={styles.mealsHead}>
-            <Text style={styles.sectionTitle}>Meals</Text>
+            <Text style={styles.sectionTitle}>{t('nutrition.meals')}</Text>
             <TouchableOpacity onPress={() => router.push('/planner')} style={styles.plannerLink}>
               <Ionicons name="calendar-outline" size={14} color={colors.brandDark} />
-              <Text style={styles.link}>Planner</Text>
+              <Text style={styles.link}>{t('nutrition.planner')}</Text>
             </TouchableOpacity>
           </View>
           {(s?.meals ?? []).length === 0 ? (
             <TouchableOpacity style={styles.emptyMeals} onPress={() => router.push({ pathname: '/add-meal', params: { date, slot: 'BREAKFAST' } })}>
               <Ionicons name="add-circle" size={26} color={colors.accent} />
-              <Text style={styles.emptyText}>Log your first meal for this day</Text>
+              <Text style={styles.emptyText}>{t('nutrition.logFirstMeal')}</Text>
             </TouchableOpacity>
           ) : (
             (s?.meals ?? []).map((m, i) => (
@@ -297,7 +309,7 @@ export default function Tracker() {
 
           <TouchableOpacity style={styles.addMealBtn} onPress={() => router.push({ pathname: '/add-meal', params: { date, slot: 'SNACK' } })}>
             <Ionicons name="add" size={18} color={colors.accent} />
-            <Text style={styles.addMealText}>Add meal</Text>
+            <Text style={styles.addMealText}>{t('nutrition.addMeal')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -306,6 +318,8 @@ export default function Tracker() {
 }
 
 function HeroStat({ label, value }: { label: string; value: number }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ alignItems: 'center', flex: 1 }}>
       <Text style={styles.heroStatValue}>{value}</Text>
@@ -314,64 +328,65 @@ function HeroStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-const styles = StyleSheet.create({
-  hero: { borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingHorizontal: 20, paddingBottom: 22, ...shadowStrong },
-  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  dateStepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heroDate: { color: '#FFF', fontSize: 16, fontWeight: '800', minWidth: 90, textAlign: 'center' },
-  ringWrap: { alignItems: 'center', marginTop: 10 },
-  ringValue: { fontSize: 46, fontWeight: '800', color: '#FFF' },
-  ringUnit: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: -4 },
-  ringChip: { marginTop: 8, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 3 },
-  ringChipText: { color: '#FFF', fontSize: 11.5, fontWeight: '700' },
-  heroStats: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
-  heroDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.25)' },
-  heroStatValue: { color: '#FFF', fontSize: 19, fontWeight: '800' },
-  heroStatLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, marginTop: 1 },
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    hero: { borderBottomLeftRadius: 32, borderBottomRightRadius: 32, paddingHorizontal: 20, paddingBottom: 22, ...shadowStrong },
+    heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    heroIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+    dateStepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    heroDate: { color: '#FFF', fontSize: 16, fontWeight: '800', minWidth: 90, textAlign: 'center' },
+    ringWrap: { alignItems: 'center', marginTop: 10 },
+    ringValue: { fontSize: 46, fontWeight: '800', color: '#FFF' },
+    ringUnit: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: -4 },
+    ringChip: { marginTop: 8, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 3 },
+    ringChipText: { color: '#FFF', fontSize: 11.5, fontWeight: '700' },
+    heroStats: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
+    heroDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.25)' },
+    heroStatValue: { color: '#FFF', fontSize: 19, fontWeight: '800' },
+    heroStatLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, marginTop: 1 },
 
-  body: { padding: 20, gap: 16, marginTop: 4 },
-  macroRow: { flexDirection: 'row', gap: 10 },
-  macroCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, padding: 12, ...shadow },
-  macroDot: { width: 8, height: 8, borderRadius: 4 },
-  macroLabel: { fontSize: 12, color: colors.inkSoft, fontWeight: '600', marginTop: 6 },
-  macroValue: { fontSize: 16, fontWeight: '800', color: colors.ink, marginTop: 2 },
-  macroGoal: { fontSize: 11, color: colors.inkFaint, fontWeight: '500' },
-  macroTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceAlt, overflow: 'hidden', marginTop: 8 },
-  macroFill: { height: '100%', borderRadius: 3 },
-  macroPct: { fontSize: 11, fontWeight: '800', marginTop: 5 },
+    body: { padding: 20, gap: 16, marginTop: 4 },
+    macroRow: { flexDirection: 'row', gap: 10 },
+    macroCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg, padding: 12, ...shadow },
+    macroDot: { width: 8, height: 8, borderRadius: 4 },
+    macroLabel: { fontSize: 12, color: colors.inkSoft, fontWeight: '600', marginTop: 6 },
+    macroValue: { fontSize: 16, fontWeight: '800', color: colors.ink, marginTop: 2 },
+    macroGoal: { fontSize: 11, color: colors.inkFaint, fontWeight: '500' },
+    macroTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceAlt, overflow: 'hidden', marginTop: 8 },
+    macroFill: { height: '100%', borderRadius: 3 },
+    macroPct: { fontSize: 11, fontWeight: '800', marginTop: 5 },
 
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 18, ...shadow },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  iconBadge: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 14.5, fontWeight: '800', color: colors.ink },
-  waterMl: { fontSize: 13, color: colors.blueDark, fontWeight: '700' },
-  glasses: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 16 },
-  waterTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceAlt, overflow: 'hidden', marginTop: 14 },
-  waterFill: { height: '100%', borderRadius: 4, backgroundColor: colors.blue },
-  waterBtns: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  waterBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: 999, backgroundColor: colors.surfaceAlt },
-  waterAdd: { backgroundColor: colors.blue },
-  waterBtnText: { fontSize: 14, fontWeight: '700', color: colors.ink },
+    card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 18, ...shadow },
+    cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    iconBadge: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    cardTitle: { fontSize: 14.5, fontWeight: '800', color: colors.ink },
+    waterMl: { fontSize: 13, color: colors.blueDark, fontWeight: '700' },
+    glasses: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 16 },
+    waterTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceAlt, overflow: 'hidden', marginTop: 14 },
+    waterFill: { height: '100%', borderRadius: 4, backgroundColor: colors.blue },
+    waterBtns: { flexDirection: 'row', gap: 12, marginTop: 16 },
+    waterBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: 999, backgroundColor: colors.surfaceAlt },
+    waterAdd: { backgroundColor: colors.blue },
+    waterBtnText: { fontSize: 14, fontWeight: '700', color: colors.ink },
 
-  chart: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 128, marginTop: 16 },
-  chartCol: { flex: 1, alignItems: 'center', gap: 7 },
-  barTrack: { width: 18, height: 100, backgroundColor: colors.surfaceAlt, borderRadius: 9, justifyContent: 'flex-end', overflow: 'hidden' },
-  bar: { width: '100%', borderRadius: 9, overflow: 'hidden' },
-  chartLabel: { fontSize: 11, color: colors.inkFaint, fontWeight: '600' },
+    chart: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 128, marginTop: 16 },
+    chartCol: { flex: 1, alignItems: 'center', gap: 7 },
+    barTrack: { width: 18, height: 100, backgroundColor: colors.surfaceAlt, borderRadius: 9, justifyContent: 'flex-end', overflow: 'hidden' },
+    bar: { width: '100%', borderRadius: 9, overflow: 'hidden' },
+    chartLabel: { fontSize: 11, color: colors.inkFaint, fontWeight: '600' },
 
-  mealsHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.ink },
-  plannerLink: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.brandLight, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  link: { color: colors.brandDark, fontSize: 13, fontWeight: '700' },
-  emptyMeals: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 22, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.surfaceAlt },
-  emptyText: { fontSize: 13.5, color: colors.inkSoft, fontWeight: '600' },
-  mealRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.md, padding: 12, ...shadow },
-  mealImg: { width: 46, height: 46, borderRadius: 12, backgroundColor: colors.surfaceAlt },
-  mealImgFallback: { alignItems: 'center', justifyContent: 'center' },
-  mealTitle: { fontSize: 14.5, fontWeight: '700', color: colors.ink },
-  mealMeta: { fontSize: 11.5, color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
-  addMealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: 999, backgroundColor: colors.accentLight, marginTop: 4 },
-  addMealText: { fontSize: 14, fontWeight: '700', color: colors.accentDark },
-});
+    mealsHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+    sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.ink },
+    plannerLink: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.brandLight, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+    link: { color: colors.brandDark, fontSize: 13, fontWeight: '700' },
+    emptyMeals: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 22, borderRadius: radius.lg, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.surfaceAlt },
+    emptyText: { fontSize: 13.5, color: colors.inkSoft, fontWeight: '600' },
+    mealRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.md, padding: 12, ...shadow },
+    mealImg: { width: 46, height: 46, borderRadius: 12, backgroundColor: colors.surfaceAlt },
+    mealImgFallback: { alignItems: 'center', justifyContent: 'center' },
+    mealTitle: { fontSize: 14.5, fontWeight: '700', color: colors.ink },
+    mealMeta: { fontSize: 11.5, color: colors.inkSoft, marginTop: 2, textTransform: 'capitalize' },
+    addMealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: 999, backgroundColor: colors.accentLight, marginTop: 4 },
+    addMealText: { fontSize: 14, fontWeight: '700', color: colors.accentDark },
+  });

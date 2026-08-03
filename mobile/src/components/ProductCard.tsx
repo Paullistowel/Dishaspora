@@ -5,7 +5,9 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { IMG } from '../config';
-import { colors, shadow } from '../theme';
+import { shadow, type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { useI18n } from '../context/I18nContext';
 import type { Listing } from '../types';
 import Avatar from './Avatar';
 import Price from './Price';
@@ -25,6 +27,9 @@ function ProductCard({
   hideVendor?: boolean;
 }) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
   const openDetail = () =>
     router.push({ pathname: '/listing/[id]', params: { id: String(listing.id) } });
@@ -34,8 +39,8 @@ function ProductCard({
       <PressableScale
         onPress={openDetail}
         tilt
-        accessibilityLabel={`${listing.title}${listing.available ? '' : ', out of stock'}`}
-        accessibilityHint="Opens product details"
+        accessibilityLabel={`${listing.title}${listing.available ? '' : `, ${t('common.outOfStock')}`}`}
+        accessibilityHint={t('common.opensProductDetails')}
       >
         <View style={styles.imageWrap}>
           <Image
@@ -47,7 +52,7 @@ function ProductCard({
           {listing.prepMinutes ? (
             <View style={styles.timeChip}>
               <Ionicons name="time-outline" size={10} color="#FFFFFF" />
-              <Text style={styles.timeChipText}>{listing.prepMinutes} min</Text>
+              <Text style={styles.timeChipText}>{listing.prepMinutes} {t('common.minShort')}</Text>
             </View>
           ) : null}
           {!hideVendor ? (
@@ -80,7 +85,7 @@ function ProductCard({
         style={{ marginTop: 4 }}
       />
       <PrimaryButton
-        title={listing.available ? 'View item' : 'Out of stock'}
+        title={listing.available ? t('common.viewItem') : t('common.outOfStock')}
         small
         disabled={!listing.available}
         onPress={openDetail}
@@ -94,7 +99,8 @@ function ProductCard({
 // listing/style/hideVendor props actually change.
 export default React.memo(ProductCard);
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   card: { flex: 1 },
   imageWrap: {
     borderRadius: 20,

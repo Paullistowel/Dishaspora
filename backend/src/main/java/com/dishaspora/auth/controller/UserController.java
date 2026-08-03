@@ -5,6 +5,7 @@ import com.dishaspora.auth.dto.AuthDtos.ChangePasswordRequest;
 import com.dishaspora.auth.dto.AuthDtos.DeleteAccountRequest;
 import com.dishaspora.auth.dto.AuthDtos.MessageResponse;
 import com.dishaspora.auth.dto.AuthDtos.UpdateMeRequest;
+import com.dishaspora.auth.dto.AuthDtos.UpdatePreferencesRequest;
 import com.dishaspora.auth.dto.UserDto;
 import com.dishaspora.auth.entity.User;
 import com.dishaspora.auth.service.AuthService;
@@ -36,6 +37,12 @@ public class UserController {
     @PutMapping("/me")
     public UserDto updateMe(@AuthenticationPrincipal User user, @Valid @RequestBody UpdateMeRequest request) {
         return authService.updateMe(user, request);
+    }
+
+    @PutMapping("/me/preferences")
+    public UserDto updatePreferences(@AuthenticationPrincipal User user,
+                                     @Valid @RequestBody UpdatePreferencesRequest request) {
+        return authService.updatePreferences(user, request);
     }
 
     @PostMapping("/me/change-email")

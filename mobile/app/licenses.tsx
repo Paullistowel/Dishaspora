@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenHeader from '@/components/ScreenHeader';
-import { colors, radius, spacing, type } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { radius, spacing, type, type ThemeColors } from '@/theme';
 
 // Key open-source dependencies and their licenses. Most of the RN/Expo ecosystem
 // is MIT-licensed. This is a human-readable acknowledgement; generate a full
@@ -25,16 +27,17 @@ const LICENSES: { name: string; license: string }[] = [
 
 export default function Licenses() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-      <ScreenHeader title="Open source licenses" />
+      <ScreenHeader title={t('support.openSourceLicenses')} />
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xxxl }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.intro}>
-          Dishaspora is built with these open-source projects. We're grateful to their maintainers.
-        </Text>
+        <Text style={styles.intro}>{t('support.licensesIntro')}</Text>
         <View style={styles.card}>
           {LICENSES.map((l, i) => (
             <View key={l.name} style={[styles.row, i < LICENSES.length - 1 && styles.divider]}>
@@ -48,11 +51,12 @@ export default function Licenses() {
   );
 }
 
-const styles = StyleSheet.create({
-  intro: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: type.line.md, marginBottom: spacing.lg },
-  card: { backgroundColor: '#FFFFFF', borderRadius: radius.lg, paddingHorizontal: spacing.lg },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.md },
-  divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.surfaceAlt },
-  name: { flex: 1, fontSize: type.size.md, color: colors.ink, fontWeight: type.weight.medium },
-  license: { fontSize: type.size.sm, color: colors.inkSoft, fontWeight: type.weight.semibold },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    intro: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: type.line.md, marginBottom: spacing.lg },
+    card: { backgroundColor: colors.card, borderRadius: radius.lg, paddingHorizontal: spacing.lg },
+    row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.md },
+    divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.surfaceAlt },
+    name: { flex: 1, fontSize: type.size.md, color: colors.ink, fontWeight: type.weight.medium },
+    license: { fontSize: type.size.sm, color: colors.inkSoft, fontWeight: type.weight.semibold },
+  });

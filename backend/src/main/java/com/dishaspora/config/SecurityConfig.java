@@ -69,7 +69,8 @@ public class SecurityConfig {
                         "/api/recipes", "/api/recipes/trending", "/api/recipes/*",
                         "/api/recipes/*/reviews", "/api/stories",
                         "/api/vendors", "/api/vendors/*", "/api/vendors/*/listings", "/api/vendors/*/reviews",
-                        "/api/listings", "/api/listings/*", "/api/subscription/plans").permitAll()
+                        "/api/listings", "/api/listings/*", "/api/subscription/plans",
+                        "/api/meals/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(ex -> ex

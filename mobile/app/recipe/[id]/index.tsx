@@ -36,8 +36,10 @@ import TwoToneTitle from '@/components/TwoToneTitle';
 import Input from '@/components/Input';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { useStartChat } from '@/hooks/useChat';
-import { colors, shadow, shadowStrong } from '@/theme';
+import { shadow, shadowStrong, type ThemeColors } from '@/theme';
 import type { Listing, Page, Recipe, Review } from '@/types';
 import { MAX_SERVINGS, MIN_SERVINGS, scaleRecipe } from '@/utils/scaling';
 
@@ -50,10 +52,14 @@ export default function RecipeDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const startChat = useStartChat();
   const queryClient = useQueryClient();
   const [basketOpen, setBasketOpen] = useState(false);
   const [checked, setChecked] = useState<Record<number, boolean>>({});
+  const [stepsExpanded, setStepsExpanded] = useState(false);
   /** null until the cook overrides it, so we always track the recipe's own yield. */
   const [servingsOverride, setServingsOverride] = useState<number | null>(null);
   const [reviewText, setReviewText] = useState('');
@@ -117,7 +123,7 @@ export default function RecipeDetail() {
       setReviewText('');
       queryClient.invalidateQueries({ queryKey: ['recipe-reviews', recipeId] });
     },
-    onError: () => Alert.alert('Could not post review', 'Please try again.'),
+    onError: () => Alert.alert(t('recipe.reviewErrorTitle'), t('recipe.reviewErrorMessage')),
   });
 
   // Premium media players (expo-video / expo-audio, SDK 54).
@@ -144,13 +150,13 @@ export default function RecipeDetail() {
         audioPlayer.play();
       }
     } catch {
-      Alert.alert('Playback error', 'Could not play the audio guide.');
+      Alert.alert(t('recipe.playbackErrorTitle'), t('recipe.playbackErrorMessage'));
     }
   };
 
   if (recipe.isLoading) return <LoadingView />;
   if (recipe.isError || !recipe.data)
-    return <ErrorView message="Could not load this recipe." onRetry={() => recipe.refetch()} />;
+    return <ErrorView message={t('recipe.loadError')} onRetry={() => recipe.refetch()} />;
 
   const rec = recipe.data;
   const servings = servingsOverride ?? rec.servings;
@@ -166,7 +172,7 @@ export default function RecipeDetail() {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert('Could not open YouTube', 'Try searching for this dish manually.');
+      Alert.alert(t('recipe.youtubeErrorTitle'), t('recipe.youtubeErrorMessage'));
     }
   };
   const contactVendor = () => {
@@ -198,7 +204,7 @@ export default function RecipeDetail() {
             </View>
             <View style={styles.calBadge}>
               <Text style={styles.calValue}>{scaled.caloriesPerServing}</Text>
-              <Text style={styles.calUnit}>kcal each</Text>
+              <Text style={styles.calUnit}>{t('recipe.kcalEach')}</Text>
             </View>
           </Animated.View>
 
@@ -210,9 +216,9 @@ export default function RecipeDetail() {
           <Animated.View entering={FadeInDown.delay(90).duration(320)} style={{ marginTop: 14 }}>
             <MetaRow
               items={[
-                { icon: 'people-outline', label: `${servings} servings` },
-                { icon: 'time-outline', label: `${totalMin} min total` },
-                { icon: 'flame-outline', label: `${scaled.caloriesTotal} Kcal total` },
+                { icon: 'people-outline', label: `${servings} ${t('recipe.servings')}` },
+                { icon: 'time-outline', label: `${totalMin} ${t('recipe.minTotal')}` },
+                { icon: 'flame-outline', label: `${scaled.caloriesTotal} ${t('recipe.kcalTotal')}` },
               ]}
             />
           </Animated.View>
@@ -220,11 +226,11 @@ export default function RecipeDetail() {
           {/* Servings scaler — drives ingredients, times and total calories */}
           <Animated.View entering={FadeInDown.delay(110).duration(320)} style={styles.servingsCard}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.servingsTitle}>Cooking for</Text>
+              <Text style={styles.servingsTitle}>{t('recipe.cookingFor')}</Text>
               <Text style={styles.servingsHint}>
                 {isRescaled
-                  ? `Scaled from the original ${rec.servings}`
-                  : 'Adjust to rescale the whole recipe'}
+                  ? `${t('recipe.scaledFromOriginal')} ${rec.servings}`
+                  : t('recipe.adjustToRescale')}
               </Text>
             </View>
             {isRescaled ? (
@@ -233,7 +239,7 @@ export default function RecipeDetail() {
                 style={styles.resetBtn}
                 activeOpacity={0.7}
               >
-                <Text style={styles.resetText}>Reset</Text>
+                <Text style={styles.resetText}>{t('recipe.reset')}</Text>
               </TouchableOpacity>
             ) : null}
             <View style={styles.stepper}>
@@ -242,7 +248,7 @@ export default function RecipeDetail() {
                 disabled={servings <= MIN_SERVINGS}
                 style={[styles.stepBtn, servings <= MIN_SERVINGS && styles.stepBtnOff]}
                 activeOpacity={0.7}
-                accessibilityLabel="Fewer servings"
+                accessibilityLabel={t('recipe.fewerServings')}
               >
                 <Ionicons name="remove" size={18} color={colors.brandDark} />
               </TouchableOpacity>
@@ -252,7 +258,7 @@ export default function RecipeDetail() {
                 disabled={servings >= MAX_SERVINGS}
                 style={[styles.stepBtn, servings >= MAX_SERVINGS && styles.stepBtnOff]}
                 activeOpacity={0.7}
-                accessibilityLabel="More servings"
+                accessibilityLabel={t('recipe.moreServings')}
               >
                 <Ionicons name="add" size={18} color={colors.brandDark} />
               </TouchableOpacity>
@@ -265,14 +271,14 @@ export default function RecipeDetail() {
               <Ionicons name="calendar-outline" size={17} color={colors.brandDark} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.freqTitle}>Meal frequency: {rec.mealFrequency}</Text>
+              <Text style={styles.freqTitle}>{t('recipe.mealFrequency')}: {rec.mealFrequency}</Text>
               <Text style={styles.freqReason}>{rec.mealFrequencyReason}</Text>
             </View>
           </Animated.View>
 
           {/* Ingredients checklist */}
           <Animated.View entering={FadeInDown.delay(170).duration(320)}>
-            <Text style={styles.sectionTitle}>Ingredients</Text>
+            <Text style={styles.sectionTitle}>{t('recipe.ingredients')}</Text>
             <View style={styles.card}>
               {scaled.ingredients.map((ingredient, i) => {
                 const on = !!checked[i];
@@ -298,27 +304,50 @@ export default function RecipeDetail() {
             </View>
           </Animated.View>
 
-          {/* Steps preview */}
+          {/* Steps — full list, collapsed to the first 3 with a Show more/less toggle.
+              No truncation: every step renders in full so long AI-generated recipes
+              are always readable here (Snap & Cook mode is the optional guided view). */}
           <Animated.View entering={FadeInDown.delay(210).duration(320)}>
             <View style={styles.stepsHeader}>
-              <Text style={styles.sectionTitle}>Steps</Text>
-              <Text style={styles.stepsCount}>{rec.steps.length} steps</Text>
+              <Text style={styles.sectionTitle}>{t('recipe.steps')}</Text>
+              <Text style={styles.stepsCount}>{rec.steps.length} {t('recipe.stepsLabel')}</Text>
             </View>
             <View style={styles.card}>
-              {rec.steps.slice(0, 3).map((step) => (
+              {(stepsExpanded ? rec.steps : rec.steps.slice(0, 3)).map((step) => (
                 <View key={step.stepNumber} style={styles.stepRow}>
                   <View style={styles.stepNum}>
                     <Text style={styles.stepNumText}>{step.stepNumber}</Text>
                   </View>
-                  <Text style={styles.stepText} numberOfLines={2}>
-                    {step.instruction}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.stepText}>{step.instruction}</Text>
+                    {step.durationMinutes ? (
+                      <View style={styles.stepDurRow}>
+                        <Ionicons name="timer-outline" size={12} color={colors.accentDark} />
+                        <Text style={styles.stepDurText}>{step.durationMinutes} {t('recipe.min')}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
               ))}
               {rec.steps.length > 3 ? (
-                <Text style={styles.moreSteps}>
-                  + {rec.steps.length - 3} more in Snap & Cook mode
-                </Text>
+                <TouchableOpacity
+                  onPress={() => setStepsExpanded((v) => !v)}
+                  style={styles.showMoreBtn}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={stepsExpanded ? t('recipe.showFewerSteps') : t('recipe.showAllSteps')}
+                >
+                  <Text style={styles.showMoreText}>
+                    {stepsExpanded
+                      ? t('recipe.showLess')
+                      : `${t('recipe.showAll')} ${rec.steps.length} ${t('recipe.stepsLabel')}`}
+                  </Text>
+                  <Ionicons
+                    name={stepsExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={15}
+                    color={colors.brandDark}
+                  />
+                </TouchableOpacity>
               ) : null}
             </View>
           </Animated.View>
@@ -331,14 +360,14 @@ export default function RecipeDetail() {
                 onPress={watchPreparation}
                 activeOpacity={0.85}
                 accessibilityRole="link"
-                accessibilityLabel={`Watch how to prepare ${rec.title} on YouTube`}
+                accessibilityLabel={`${t('recipe.watchHowToPrepare')} ${rec.title} ${t('recipe.onYoutube')}`}
               >
                 <View style={styles.watchIcon}>
                   <Ionicons name="logo-youtube" size={19} color="#FF0000" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.watchTitle}>Watch the preparation</Text>
-                  <Text style={styles.watchSub}>See {rec.title} made on YouTube</Text>
+                  <Text style={styles.watchTitle}>{t('recipe.watchPreparation')}</Text>
+                  <Text style={styles.watchSub}>{t('recipe.see')} {rec.title} {t('recipe.madeOnYoutube')}</Text>
                 </View>
                 <Ionicons name="open-outline" size={17} color={colors.brandDark} />
               </TouchableOpacity>
@@ -348,7 +377,7 @@ export default function RecipeDetail() {
           {/* Food Story */}
           {rec.story ? (
             <Animated.View entering={FadeInDown.delay(250).duration(320)}>
-              <Text style={styles.sectionTitle}>Food Story</Text>
+              <Text style={styles.sectionTitle}>{t('recipe.foodStory')}</Text>
               <PressableScale
                 tilt
                 onPress={() =>
@@ -368,7 +397,7 @@ export default function RecipeDetail() {
                     <Text style={styles.storyText} numberOfLines={4}>
                       {rec.story}
                     </Text>
-                    <Text style={styles.storyLink}>Read the full story</Text>
+                    <Text style={styles.storyLink}>{t('recipe.readFullStory')}</Text>
                   </View>
                 </View>
               </PressableScale>
@@ -378,7 +407,7 @@ export default function RecipeDetail() {
           {/* Premium media */}
           {(rec.hasVideo || rec.hasAudio) ? (
             <Animated.View entering={FadeInDown.delay(290).duration(320)}>
-              <Text style={styles.sectionTitle}>Cook-along guides</Text>
+              <Text style={styles.sectionTitle}>{t('recipe.cookAlongGuides')}</Text>
               {user?.premium && (rec.videoUrl || rec.audioUrl) ? (
                 <View style={{ gap: 12 }}>
                   {rec.videoUrl ? (
@@ -403,9 +432,9 @@ export default function RecipeDetail() {
                         />
                       </View>
                       <View>
-                        <Text style={styles.audioTitle}>Audio cook-along</Text>
+                        <Text style={styles.audioTitle}>{t('recipe.audioCookAlong')}</Text>
                         <Text style={styles.audioSub}>
-                          {audioPlaying ? 'Playing — tap to pause' : 'Listen while you cook'}
+                          {audioPlaying ? t('recipe.audioPlaying') : t('recipe.audioListen')}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -417,14 +446,14 @@ export default function RecipeDetail() {
                     <Ionicons name="lock-closed" size={18} color={colors.accentDark} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.lockedTitle}>Video & audio guides are Premium</Text>
+                    <Text style={styles.lockedTitle}>{t('recipe.guidesPremium')}</Text>
                     <Text style={styles.lockedSub}>
-                      Cook along with{' '}
-                      {rec.vendorName ?? 'our chefs'} step by step.
+                      {t('recipe.cookAlongWith')}{' '}
+                      {rec.vendorName ?? t('recipe.ourChefs')} {t('recipe.stepByStep')}
                     </Text>
                   </View>
                   <PrimaryButton
-                    title="Go Premium"
+                    title={t('recipe.goPremium')}
                     small
                     onPress={() => router.push('/subscription')}
                   />
@@ -435,18 +464,18 @@ export default function RecipeDetail() {
 
           {/* Reviews */}
           <Animated.View entering={FadeInDown.delay(330).duration(320)}>
-            <Text style={styles.sectionTitle}>Reviews</Text>
+            <Text style={styles.sectionTitle}>{t('recipe.reviews')}</Text>
             <View style={styles.card}>
               <View style={styles.addReview}>
                 <RatingStars rating={reviewRating} onRate={setReviewRating} />
                 <Input
-                  placeholder="Share how it turned out..."
+                  placeholder={t('recipe.reviewPlaceholder')}
                   value={reviewText}
                   onChangeText={setReviewText}
                   style={{ marginTop: 10 }}
                 />
                 <PrimaryButton
-                  title="Post review"
+                  title={t('recipe.postReview')}
                   small
                   loading={reviewMutation.isPending}
                   disabled={reviewText.trim().length === 0}
@@ -479,7 +508,7 @@ export default function RecipeDetail() {
               <Avatar url={null} name={rec.vendorName} size={44} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.contactName}>{rec.vendorName}</Text>
-                <Text style={styles.contactRole}>Recipe vendor</Text>
+                <Text style={styles.contactRole}>{t('recipe.recipeVendor')}</Text>
               </View>
               <TouchableOpacity style={styles.contactBtn} onPress={contactVendor}>
                 <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.ink} />
@@ -512,7 +541,7 @@ export default function RecipeDetail() {
       {/* Sticky pathways bar */}
       <View style={[styles.pathways, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         <PrimaryButton
-          title="Snap & Cook"
+          title={t('recipe.snapAndCook')}
           variant="outline"
           small
           onPress={() =>
@@ -524,14 +553,14 @@ export default function RecipeDetail() {
           style={{ flex: 1 }}
         />
         <PrimaryButton
-          title="Buy ingredients"
+          title={t('recipe.buyIngredients')}
           small
           onPress={() => setBasketOpen(true)}
           style={{ flex: 1 }}
         />
         {linkedListing ? (
           <PrimaryButton
-            title="Order meal"
+            title={t('recipe.orderMeal')}
             variant="black"
             small
             onPress={() =>
@@ -550,7 +579,8 @@ export default function RecipeDetail() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   heroWrap: { height: HERO_H, overflow: 'hidden', backgroundColor: colors.surfaceAlt },
   hero: { width: SCREEN_W, height: HERO_H },
   body: {
@@ -577,7 +607,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.brandLight,
@@ -602,7 +632,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -618,7 +648,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.brandLight,
@@ -648,7 +678,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -656,7 +686,7 @@ const styles = StyleSheet.create({
   freqReason: { fontSize: 12, color: colors.inkSoft, marginTop: 3, lineHeight: 17 },
   sectionTitle: { fontSize: 17, fontWeight: '600', color: colors.ink, marginTop: 22, marginBottom: 10 },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 14,
     ...shadow,
@@ -687,11 +717,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepNumText: { fontSize: 12, fontWeight: '700', color: colors.accentDark },
-  stepText: { flex: 1, fontSize: 13.5, color: colors.inkSoft, lineHeight: 19 },
-  moreSteps: { fontSize: 12.5, color: colors.blueDark, fontWeight: '600', marginTop: 6 },
+  stepText: { fontSize: 13.5, color: colors.inkSoft, lineHeight: 19 },
+  stepDurRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  stepDurText: { fontSize: 11.5, color: colors.accentDark, fontWeight: '600' },
+  showMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingTop: 12,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceAlt,
+  },
+  showMoreText: { fontSize: 13, color: colors.brandDark, fontWeight: '700' },
   storyCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     overflow: 'hidden',
     ...shadow,
@@ -704,7 +746,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 12,
     ...shadow,
@@ -731,7 +773,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -747,7 +789,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginTop: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 12,
     ...shadow,
@@ -778,7 +820,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     ...shadowStrong,

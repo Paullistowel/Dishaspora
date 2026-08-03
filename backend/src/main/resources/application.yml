@@ -57,9 +57,9 @@ app:
     from: ${MAIL_FROM:Dishaspora <no-reply@dishaspora.app>}
 
 auth:
-  # Set AUTH_REQUIRE_VERIFIED_EMAIL=true once SMTP is configured to block
-  # unverified users at login. Left false so seeded/demo accounts keep working.
-  require-verified-email: ${AUTH_REQUIRE_VERIFIED_EMAIL:false}
+  # Block unverified users at login. Seeded/demo accounts are pre-verified so they
+  # keep working. Override with AUTH_REQUIRE_VERIFIED_EMAIL=false only for testing.
+  require-verified-email: ${AUTH_REQUIRE_VERIFIED_EMAIL:true}
 
 # CORS: "*" for local dev / Expo tunnel. In production set CORS_ALLOWED_ORIGINS to
 # a comma-separated allow-list of your real web/admin origins.

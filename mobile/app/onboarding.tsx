@@ -14,34 +14,45 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
-import { colors, shadowStrong } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadowStrong, type ThemeColors } from '@/theme';
 
 const { width } = Dimensions.get('window');
 
-const SLIDES = [
-  {
-    image: require('../assets/images/onboarding-1.png'),
-    title: ['Taste of Home,', 'Wherever You Are'],
-    sub: 'Authentic Ghanaian and Nigerian recipes with the stories behind every dish — cook the food you grew up with.',
-  },
-  {
-    image: require('../assets/images/onboarding-2.png'),
-    title: ['Cook It, Shop It,', 'Or Order It'],
-    sub: 'Follow guided cook mode, buy every ingredient in one tap, or order the finished meal from trusted local vendors.',
-  },
-  {
-    image: require('../assets/images/onboarding-3.png'),
-    title: ['Stamp Your', 'Food Passport'],
-    sub: 'Every dish you cook earns passport stamps across West Africa and beyond. Start your culinary journey today.',
-  },
+const SLIDE_IMAGES = [
+  require('../assets/images/onboarding-1.png'),
+  require('../assets/images/onboarding-2.png'),
+  require('../assets/images/onboarding-3.png'),
 ];
 
 export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { completeOnboarding, token } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [page, setPage] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+
+  const slides = [
+    {
+      image: SLIDE_IMAGES[0],
+      title: [t('intro.slide1TitleLine1'), t('intro.slide1TitleLine2')],
+      sub: t('intro.slide1Sub'),
+    },
+    {
+      image: SLIDE_IMAGES[1],
+      title: [t('intro.slide2TitleLine1'), t('intro.slide2TitleLine2')],
+      sub: t('intro.slide2Sub'),
+    },
+    {
+      image: SLIDE_IMAGES[2],
+      title: [t('intro.slide3TitleLine1'), t('intro.slide3TitleLine2')],
+      sub: t('intro.slide3Sub'),
+    },
+  ];
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPage(Math.round(e.nativeEvent.contentOffset.x / width));
@@ -54,7 +65,7 @@ export default function Onboarding() {
   };
 
   const next = async () => {
-    if (page < SLIDES.length - 1) {
+    if (page < slides.length - 1) {
       scrollRef.current?.scrollTo({ x: (page + 1) * width, animated: true });
     } else {
       await finish();
@@ -70,7 +81,7 @@ export default function Onboarding() {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onScroll}
       >
-        {SLIDES.map((slide, i) => (
+        {slides.map((slide, i) => (
           <View key={i} style={{ width }}>
             <Image source={slide.image} style={styles.hero} contentFit="cover" />
             <View style={styles.panel}>
@@ -90,12 +101,12 @@ export default function Onboarding() {
           <Image source={require('../assets/images/dishaspora-logo.png')} style={styles.logoImg} contentFit="cover" />
         </View>
         <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
+          {slides.map((_, i) => (
             <View key={i} style={[styles.dot, i === page && styles.dotActive]} />
           ))}
         </View>
         <TouchableOpacity style={styles.startBtn} onPress={next} activeOpacity={0.85}>
-          <Text style={styles.startText}>{page === SLIDES.length - 1 ? 'Start' : 'Next'}</Text>
+          <Text style={styles.startText}>{page === slides.length - 1 ? t('intro.start') : t('intro.next')}</Text>
           <View style={styles.chevrons}>
             <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.4)" />
             <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" style={styles.chevOverlap} />
@@ -107,56 +118,57 @@ export default function Onboarding() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  hero: { width: '100%', height: '58%' },
-  panel: { flex: 1, paddingHorizontal: 28, paddingTop: 28 },
-  headline: {
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '800',
-    color: colors.ink,
-  },
-  sub: { fontSize: 14, lineHeight: 22, color: colors.inkSoft, marginTop: 14 },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 28,
-    gap: 14,
-  },
-  logoChip: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  logoImg: { width: 36, height: 36, borderRadius: 18 },
-  dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center' },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.surfaceAlt,
-  },
-  dotActive: { backgroundColor: colors.accent, width: 18 },
-  startBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.ink,
-    borderRadius: 999,
-    height: 64,
-    paddingHorizontal: 26,
-    gap: 8,
-    ...shadowStrong,
-  },
-  startText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  chevrons: { flexDirection: 'row', alignItems: 'center' },
-  chevOverlap: { marginLeft: -6 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.background },
+    hero: { width: '100%', height: '58%' },
+    panel: { flex: 1, paddingHorizontal: 28, paddingTop: 28 },
+    headline: {
+      fontSize: 34,
+      lineHeight: 40,
+      fontWeight: '800',
+      color: colors.ink,
+    },
+    sub: { fontSize: 14, lineHeight: 22, color: colors.inkSoft, marginTop: 14 },
+    footer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 28,
+      gap: 14,
+    },
+    logoChip: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.brandLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    logoImg: { width: 36, height: 36, borderRadius: 18 },
+    dots: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center' },
+    dot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.surfaceAlt,
+    },
+    dotActive: { backgroundColor: colors.accent, width: 18 },
+    startBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.ink,
+      borderRadius: 999,
+      height: 64,
+      paddingHorizontal: 26,
+      gap: 8,
+      ...shadowStrong,
+    },
+    startText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    chevrons: { flexDirection: 'row', alignItems: 'center' },
+    chevOverlap: { marginLeft: -6 },
+  });

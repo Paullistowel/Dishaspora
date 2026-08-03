@@ -6,7 +6,8 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { colors } from '../theme';
+import { type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 const SPRING = { damping: 18, stiffness: 220 };
 
@@ -25,6 +26,8 @@ export default function SegmentChips({
   onChange: (v: string) => void;
   style?: ViewStyle;
 }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [trackWidth, setTrackWidth] = useState(0);
   const index = Math.max(segments.indexOf(value), 0);
   const x = useSharedValue(0);
@@ -66,7 +69,8 @@ export default function SegmentChips({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   track: {
     flexDirection: 'row',
     backgroundColor: colors.surface,

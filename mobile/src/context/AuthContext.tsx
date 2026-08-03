@@ -41,7 +41,7 @@ interface AuthContextValue {
     email: string,
     password: string,
     country: Country
-  ) => Promise<User>;
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<User | null>;
   updateUser: (user: User) => Promise<void>;
@@ -140,16 +140,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (name: string, email: string, password: string, country: Country) => {
-      const auth = await api.post<AuthResponse>('/auth/register', {
+      // Registration no longer issues a session — the backend sends a verification
+      // email and the user must verify, then sign in. (Enforces "no login until
+      // verified"; auto-login here would be a bypass.)
+      await api.post<{ message: string }>('/auth/register', {
         name,
         email,
         password,
         country,
       });
-      await persist(auth);
-      return auth.user;
     },
-    [persist]
+    []
   );
 
   const logout = useCallback(async () => {

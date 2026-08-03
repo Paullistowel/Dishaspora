@@ -2,12 +2,17 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNetwork } from '../context/NetworkContext';
-import { colors, spacing, type } from '../theme';
+import { spacing, type, type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { useI18n } from '../context/I18nContext';
 import PrimaryButton from './PrimaryButton';
 
 export function LoadingView() {
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   return (
-    <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel="Loading">
+    <View style={styles.center} accessibilityRole="progressbar" accessibilityLabel={t('common.loading')}>
       <ActivityIndicator size="large" color={colors.brandDark} />
     </View>
   );
@@ -20,17 +25,20 @@ export function LoadingView() {
  * back online just works (React Query resumes paused queries too).
  */
 export function ErrorView({
-  message = 'Something went wrong.',
+  message,
   onRetry,
 }: {
   message?: string;
   onRetry?: () => void;
 }) {
   const { isOffline } = useNetwork();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const icon = isOffline ? 'cloud-offline-outline' : 'alert-circle-outline';
   const text = isOffline
-    ? "You're offline. Check your connection and try again."
-    : message;
+    ? t('common.offlineMessage')
+    : message ?? t('common.somethingWentWrong');
 
   return (
     <View style={styles.center} accessibilityRole="alert">
@@ -38,7 +46,7 @@ export function ErrorView({
       <Text style={styles.errorText}>{text}</Text>
       {onRetry ? (
         <PrimaryButton
-          title="Try again"
+          title={t('common.tryAgain')}
           onPress={onRetry}
           style={{ marginTop: spacing.lg, paddingHorizontal: 40 }}
         />
@@ -47,7 +55,8 @@ export function ErrorView({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   center: {
     flex: 1,
     alignItems: 'center',

@@ -136,26 +136,44 @@ public class SmartSearchService {
                     || !recipe.getCuisine().equalsIgnoreCase(filters.cuisine()))) continue;
 
             int score = 0;
+            int matchedKeywords = 0;
             String title = recipe.getTitle().toLowerCase(Locale.ROOT);
             String description = recipe.getDescription() == null ? ""
                     : recipe.getDescription().toLowerCase(Locale.ROOT);
             for (String keyword : filters.keywords()) {
-                if (title.contains(keyword)) score += 3;
-                if (description.contains(keyword)) score += 1;
+                boolean hit = false;
+                if (title.contains(keyword)) { score += 3; hit = true; }
+                if (description.contains(keyword)) { score += 1; hit = true; }
                 for (Ingredient ingredient : recipe.getIngredients()) {
                     if (ingredient.getName() != null
                             && ingredient.getName().toLowerCase(Locale.ROOT).contains(keyword)) {
                         score += 2;
+                        hit = true;
                         break;
                     }
                 }
+                if (hit) matchedKeywords++;
             }
-            // If constraints were provided, keep constraint-only matches too.
             boolean hasConstraint = filters.maxMinutes() != null || filters.maxCalories() != null
                     || filters.category() != null || filters.cuisine() != null;
-            if (score > 0 || (hasConstraint && filters.keywords().isEmpty())) {
-                scored.add(new Scored(recipe, score));
-            } else if (!hasConstraint && filters.keywords().isEmpty()) {
+
+            if (!filters.keywords().isEmpty()) {
+                if (hasConstraint) {
+                    // Constraint-scoped natural-language query (e.g. "high-protein
+                    // Nigerian meal"): the cuisine/category/time/calorie filters have
+                    // already been applied above; keep any-keyword scoring so relevant
+                    // dishes still surface.
+                    if (score > 0) scored.add(new Scored(recipe, score));
+                } else {
+                    // Pure name-style query (e.g. "Jollof Pizza"): require EVERY typed
+                    // word to match somewhere, so a non-existent dish returns nothing
+                    // instead of a partial/unrelated meal ("Jollof Rice").
+                    if (matchedKeywords == filters.keywords().size()) {
+                        scored.add(new Scored(recipe, score));
+                    }
+                }
+            } else {
+                // No keywords — browse (optionally within constraints).
                 scored.add(new Scored(recipe, 0));
             }
         }

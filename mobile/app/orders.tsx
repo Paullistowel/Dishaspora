@@ -19,38 +19,16 @@ import ScreenHeader from '@/components/ScreenHeader';
 import SegmentChips from '@/components/SegmentChips';
 import { Skeleton } from '@/components/Skeleton';
 import { IMG } from '@/config';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { useToast } from '@/context/ToastContext';
 import { formatMoney } from '@/money';
-import { colors, shadow } from '@/theme';
+import { shadow, type ThemeColors } from '@/theme';
 import type { Order, OrderStatus } from '@/types';
-
-const STATUS_COLORS: Record<OrderStatus, { bg: string; fg: string }> = {
-  PENDING_PAYMENT: { bg: colors.accentLight, fg: colors.accentDark },
-  PAID: { bg: colors.blueLight, fg: colors.blueDark },
-  PREPARING: { bg: colors.accentLight, fg: colors.accentDark },
-  READY: { bg: colors.brandLight, fg: colors.brandDark },
-  COMPLETED: { bg: '#E7F8EF', fg: colors.success },
-  CANCELLED: { bg: '#FDECEC', fg: colors.danger },
-};
-
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thr', 'Fri', 'Sat', 'Sun'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 function dayKey(iso?: string | null) {
   // Fall back to today for any order missing a timestamp so grouping never crashes.
   return (iso ?? new Date().toISOString()).slice(0, 10);
-}
-
-function prettyDay(key: string) {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  if (key === today) return 'Today';
-  if (key === yesterday) return 'Yesterday';
-  const d = new Date(key + 'T00:00:00');
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function OrderCard({
@@ -62,6 +40,27 @@ function OrderCard({
   onConfirm: (order: Order) => void;
   confirming: boolean;
 }) {
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const STATUS_COLORS: Record<OrderStatus, { bg: string; fg: string }> = {
+    PENDING_PAYMENT: { bg: colors.accentLight, fg: colors.accentDark },
+    PAID: { bg: colors.blueLight, fg: colors.blueDark },
+    PREPARING: { bg: colors.accentLight, fg: colors.accentDark },
+    READY: { bg: colors.brandLight, fg: colors.brandDark },
+    COMPLETED: { bg: '#E7F8EF', fg: colors.success },
+    CANCELLED: { bg: '#FDECEC', fg: colors.danger },
+  };
+  const STATUS_LABELS: Record<OrderStatus, string> = {
+    PENDING_PAYMENT: t('orders.statusPendingPayment'),
+    PAID: t('orders.statusPaid'),
+    PREPARING: t('orders.statusPreparing'),
+    READY: t('orders.statusReady'),
+    COMPLETED: t('orders.statusCompleted'),
+    CANCELLED: t('orders.statusCancelled'),
+  };
+
   const sc = STATUS_COLORS[order.status];
   const pending = order.status === 'PENDING_PAYMENT';
   return (
@@ -70,7 +69,7 @@ function OrderCard({
         <Text style={styles.orderVendor}>{order.vendorName}</Text>
         <View style={[styles.statusPill, { backgroundColor: sc.bg }]}>
           <Text style={[styles.statusText, { color: sc.fg }]}>
-            {order.status.replace('_', ' ')}
+            {STATUS_LABELS[order.status]}
           </Text>
         </View>
       </View>
@@ -97,11 +96,11 @@ function OrderCard({
           onPress={() => onConfirm(order)}
           disabled={confirming}
           accessibilityRole="button"
-          accessibilityLabel={`Confirm payment for order ${order.reference}`}
+          accessibilityLabel={`${t('orders.confirmPaymentA11y')} ${order.reference}`}
         >
           <Ionicons name="refresh" size={14} color={colors.accentDark} />
           <Text style={styles.confirmText}>
-            {confirming ? 'Checking…' : "Already paid? Confirm payment"}
+            {confirming ? t('orders.checking') : t('orders.confirmPayment')}
           </Text>
         </TouchableOpacity>
       ) : null}
@@ -112,11 +111,50 @@ function OrderCard({
 export default function Orders() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [segment, setSegment] = useState('List');
+  // Store the tab index (stable) not the localized label, so language switches
+  // don't break the active-segment comparison.
+  const [segIndex, setSegIndex] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const segments = [t('orders.list'), t('orders.calendar')];
+  const monthNames = [
+    t('orders.monthJanuary'),
+    t('orders.monthFebruary'),
+    t('orders.monthMarch'),
+    t('orders.monthApril'),
+    t('orders.monthMay'),
+    t('orders.monthJune'),
+    t('orders.monthJuly'),
+    t('orders.monthAugust'),
+    t('orders.monthSeptember'),
+    t('orders.monthOctober'),
+    t('orders.monthNovember'),
+    t('orders.monthDecember'),
+  ];
+  const dayNames = [
+    t('orders.dayMon'),
+    t('orders.dayTue'),
+    t('orders.dayWed'),
+    t('orders.dayThr'),
+    t('orders.dayFri'),
+    t('orders.daySat'),
+    t('orders.daySun'),
+  ];
+
+  const prettyDay = (key: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    if (key === today) return t('orders.today');
+    if (key === yesterday) return t('orders.yesterday');
+    const d = new Date(key + 'T00:00:00');
+    return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+  };
 
   const orders = useQuery({
     queryKey: ['orders'],
@@ -132,17 +170,13 @@ export default function Orders() {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       if (updated.status === 'PENDING_PAYMENT') {
-        toast.info('No completed payment found for this order yet.');
+        toast.info(t('orders.noPaymentFound'));
       } else {
-        toast.success('Payment confirmed — your order is on its way.');
+        toast.success(t('orders.paymentConfirmed'));
       }
     },
     onError: (e) =>
-      toast.error(
-        e instanceof ApiError
-          ? e.message
-          : "We couldn't confirm this payment. If you paid, try again shortly."
-      ),
+      toast.error(e instanceof ApiError ? e.message : t('orders.confirmError')),
   });
   const confirmingId = confirmPayment.isPending ? confirmPayment.variables?.id : undefined;
 
@@ -187,9 +221,13 @@ export default function Orders() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-      <ScreenHeader title="My Orders" />
+      <ScreenHeader title={t('orders.title')} />
       <View style={{ paddingHorizontal: 20 }}>
-        <SegmentChips segments={['List', 'Calendar']} value={segment} onChange={setSegment} />
+        <SegmentChips
+          segments={segments}
+          value={segments[segIndex]}
+          onChange={(v) => setSegIndex(Math.max(0, segments.indexOf(v)))}
+        />
       </View>
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
@@ -210,16 +248,16 @@ export default function Orders() {
         ) : orders.isError ? (
           <EmptyState
             image={2}
-            message="We couldn't load your orders. Check your connection and try again."
-            actionLabel="Retry"
+            message={t('orders.loadError')}
+            actionLabel={t('common.retry')}
             onAction={() => orders.refetch()}
           />
-        ) : segment === 'List' ? (
+        ) : segIndex === 0 ? (
           grouped.length === 0 ? (
             <EmptyState
               image={1}
-              message="No orders yet. Your meals and ingredient baskets will show up here."
-              actionLabel="Browse the market"
+              message={t('orders.empty')}
+              actionLabel={t('orders.browseMarket')}
               onAction={() => router.push('/(tabs)/market')}
             />
           ) : (
@@ -244,7 +282,7 @@ export default function Orders() {
             {/* Month header */}
             <View style={styles.monthRow}>
               <Text style={styles.monthTitle}>
-                {MONTHS[monthDate.getMonth()]} {monthDate.getFullYear()}
+                {monthNames[monthDate.getMonth()]} {monthDate.getFullYear()}
               </Text>
               <View style={styles.monthNav}>
                 <TouchableOpacity
@@ -263,7 +301,7 @@ export default function Orders() {
             </View>
             {/* Mon–Sun header on surface pill */}
             <View style={styles.dowRow}>
-              {DAYS.map((d) => (
+              {dayNames.map((d) => (
                 <Text key={d} style={styles.dowText}>
                   {d}
                 </Text>
@@ -299,11 +337,9 @@ export default function Orders() {
             ))}
             <View style={{ marginTop: 20, gap: 12 }}>
               {selectedDate === null ? (
-                <Text style={styles.calendarHint}>
-                  Select a highlighted date to see that day's orders.
-                </Text>
+                <Text style={styles.calendarHint}>{t('orders.calendarHint')}</Text>
               ) : selectedOrders.length === 0 ? (
-                <EmptyState image={2} message="No orders on this day." />
+                <EmptyState image={2} message={t('orders.noOrdersOnDay')} />
               ) : (
                 selectedOrders.map((order) => (
                   <OrderCard
@@ -322,89 +358,90 @@ export default function Orders() {
   );
 }
 
-const styles = StyleSheet.create({
-  dayHeader: { fontSize: 14.5, fontWeight: '700', color: colors.ink, marginBottom: 10 },
-  orderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    ...shadow,
-  },
-  orderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  orderVendor: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
-  orderItems: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  itemThumb: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    marginRight: -14,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    backgroundColor: colors.surfaceAlt,
-  },
-  itemsLabel: { fontSize: 12.5, color: colors.inkSoft, marginLeft: 18 },
-  orderRef: { fontSize: 11, color: colors.inkFaint, marginLeft: 18, marginTop: 2 },
-  orderTotal: { fontSize: 14, fontWeight: '800', color: colors.ink },
-  confirmBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: colors.accentLight,
-  },
-  confirmText: { fontSize: 12.5, fontWeight: '700', color: colors.accentDark },
-  monthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  monthTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  monthNav: { flexDirection: 'row', gap: 8 },
-  monthBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthBtnNext: { backgroundColor: colors.accent },
-  dowRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingVertical: 8,
-    marginBottom: 8,
-  },
-  dowText: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.inkSoft,
-  },
-  weekRow: { flexDirection: 'row', marginBottom: 4 },
-  dateCell: {
-    flex: 1,
-    aspectRatio: 1.1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 999,
-  },
-  dateSelected: { backgroundColor: colors.accent },
-  dateText: { fontSize: 13.5, color: colors.ink },
-  orderDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.accent,
-    marginTop: 2,
-  },
-  calendarHint: { fontSize: 13, color: colors.inkFaint, textAlign: 'center', marginTop: 8 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    dayHeader: { fontSize: 14.5, fontWeight: '700', color: colors.ink, marginBottom: 10 },
+    orderCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 14,
+      ...shadow,
+    },
+    orderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    orderVendor: { fontSize: 14, fontWeight: '700', color: colors.ink },
+    statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    statusText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
+    orderItems: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+    itemThumb: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      marginRight: -14,
+      borderWidth: 2,
+      borderColor: colors.card,
+      backgroundColor: colors.surfaceAlt,
+    },
+    itemsLabel: { fontSize: 12.5, color: colors.inkSoft, marginLeft: 18 },
+    orderRef: { fontSize: 11, color: colors.inkFaint, marginLeft: 18, marginTop: 2 },
+    orderTotal: { fontSize: 14, fontWeight: '800', color: colors.ink },
+    confirmBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: colors.accentLight,
+    },
+    confirmText: { fontSize: 12.5, fontWeight: '700', color: colors.accentDark },
+    monthRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    monthTitle: { fontSize: 17, fontWeight: '700', color: colors.ink },
+    monthNav: { flexDirection: 'row', gap: 8 },
+    monthBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    monthBtnNext: { backgroundColor: colors.accent },
+    dowRow: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingVertical: 8,
+      marginBottom: 8,
+    },
+    dowText: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.inkSoft,
+    },
+    weekRow: { flexDirection: 'row', marginBottom: 4 },
+    dateCell: {
+      flex: 1,
+      aspectRatio: 1.1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 999,
+    },
+    dateSelected: { backgroundColor: colors.accent },
+    dateText: { fontSize: 13.5, color: colors.ink },
+    orderDot: {
+      width: 5,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: colors.accent,
+      marginTop: 2,
+    },
+    calendarHint: { fontSize: 13, color: colors.inkFaint, textAlign: 'center', marginTop: 8 },
+  });

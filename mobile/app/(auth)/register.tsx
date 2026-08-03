@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -21,7 +21,9 @@ import PrimaryButton from '@/components/PrimaryButton';
 import TwoToneTitle from '@/components/TwoToneTitle';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
-import { colors, shadow } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadow, type ThemeColors } from '@/theme';
 import { ApiError } from '@/api';
 import { isValidEmail, meetsPasswordPolicy } from '@/validation';
 import type { Country } from '@/types';
@@ -38,6 +40,9 @@ export default function Register() {
   const insets = useSafeAreaInsets();
   const { register } = useAuth();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,14 +53,14 @@ export default function Register() {
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
-    if (!name.trim()) next.name = 'Enter your full name.';
-    if (!email.trim()) next.email = 'Enter your email address.';
-    else if (!isValidEmail(email)) next.email = 'Enter a valid email address.';
-    if (!password) next.password = 'Choose a password.';
+    if (!name.trim()) next.name = t('auth.errNameRequired');
+    if (!email.trim()) next.email = t('auth.errEmailRequired');
+    else if (!isValidEmail(email)) next.email = t('auth.errEmailInvalid');
+    if (!password) next.password = t('auth.errPasswordRequired');
     else if (!meetsPasswordPolicy(password))
-      next.password = 'Use 8+ characters with upper, lower and a number.';
-    if (!confirm) next.confirm = 'Re-enter your password.';
-    else if (confirm !== password) next.confirm = 'Passwords do not match.';
+      next.password = t('auth.errPasswordPolicy');
+    if (!confirm) next.confirm = t('auth.errConfirmRequired');
+    else if (confirm !== password) next.confirm = t('auth.errPasswordsMismatch');
     return next;
   };
 
@@ -67,16 +72,17 @@ export default function Register() {
     setBusy(true);
     try {
       await register(name.trim(), email.trim(), password, country);
-      toast.success('Account created — welcome to Dishaspora!');
-      // New users go through onboarding, then into the app.
-      router.replace('/onboarding');
+      // No auto-login: the account is unverified. Send them to sign-in with a
+      // clear "check your email to verify" message.
+      toast.success(t('auth.verifyEmailSent'));
+      router.replace('/(auth)/login');
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
-        setErrors({ email: 'That email is already registered.' });
-        toast.error('That email is already registered.');
+        setErrors({ email: t('auth.emailAlreadyRegistered') });
+        toast.error(t('auth.emailAlreadyRegistered'));
       } else {
         toast.error(
-          e instanceof ApiError ? e.message : 'Something went wrong. Please try again.'
+          e instanceof ApiError ? e.message : t('auth.somethingWentWrongRetry')
         );
       }
     } finally {
@@ -101,17 +107,17 @@ export default function Register() {
           />
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(80).duration(400)}>
-          <TwoToneTitle text="Join Dishaspora" size={32} style={{ marginTop: 24 }} />
-          <Text style={styles.sub}>Recipes, stories and markets from home — in one app.</Text>
+          <TwoToneTitle text={t('auth.joinDishaspora')} size={32} style={{ marginTop: 24 }} />
+          <Text style={styles.sub}>{t('auth.joinSubtitle')}</Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(160).duration(400)} style={styles.form}>
           <Input
             icon="person-outline"
-            placeholder="Full name"
+            placeholder={t('auth.fullNamePlaceholder')}
             value={name}
-            onChangeText={(t) => {
-              setName(t);
+            onChangeText={(text) => {
+              setName(text);
               if (errors.name) setErrors((e) => ({ ...e, name: undefined }));
             }}
             autoCapitalize="words"
@@ -121,10 +127,10 @@ export default function Register() {
           <FieldError message={errors.name} />
           <Input
             icon="mail-outline"
-            placeholder="Email address"
+            placeholder={t('auth.emailPlaceholder')}
             value={email}
-            onChangeText={(t) => {
-              setEmail(t);
+            onChangeText={(text) => {
+              setEmail(text);
               if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
             }}
             autoCapitalize="none"
@@ -136,10 +142,10 @@ export default function Register() {
           <FieldError message={errors.email} />
           <Input
             icon="lock-closed-outline"
-            placeholder="Password (8+ chars, mixed case & a number)"
+            placeholder={t('auth.passwordPolicyPlaceholder')}
             value={password}
-            onChangeText={(t) => {
-              setPassword(t);
+            onChangeText={(text) => {
+              setPassword(text);
               if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
             }}
             secureTextEntry
@@ -149,10 +155,10 @@ export default function Register() {
           <FieldError message={errors.password} />
           <Input
             icon="lock-closed-outline"
-            placeholder="Confirm password"
+            placeholder={t('auth.confirmPasswordPlaceholder')}
             value={confirm}
-            onChangeText={(t) => {
-              setConfirm(t);
+            onChangeText={(text) => {
+              setConfirm(text);
               if (errors.confirm) setErrors((e) => ({ ...e, confirm: undefined }));
             }}
             secureTextEntry
@@ -161,30 +167,30 @@ export default function Register() {
             onSubmitEditing={submit}
           />
           <FieldError message={errors.confirm} />
-          <Text style={styles.label}>Where are you shopping from?</Text>
+          <Text style={styles.label}>{t('auth.shoppingFromLabel')}</Text>
           <View style={styles.chips}>
             <ChoiceChip
-              label="Ghana"
+              label={t('auth.ghana')}
               left={<Flag country="GH" size={16} />}
               selected={country === 'GH'}
               onPress={() => setCountry('GH')}
               style={{ flex: 1, justifyContent: 'center' }}
             />
             <ChoiceChip
-              label="Nigeria"
+              label={t('auth.nigeria')}
               left={<Flag country="NG" size={16} />}
               selected={country === 'NG'}
               onPress={() => setCountry('NG')}
               style={{ flex: 1, justifyContent: 'center' }}
             />
           </View>
-          <PrimaryButton title="Create account" onPress={submit} loading={busy} style={{ marginTop: 8 }} />
+          <PrimaryButton title={t('auth.createAccount')} onPress={submit} loading={busy} style={{ marginTop: 8 }} />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(240).duration(400)} style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+          <Text style={styles.footerText}>{t('auth.alreadyHaveAccount')} </Text>
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.link}>Sign in</Text>
+            <Text style={styles.link}>{t('auth.signIn')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
@@ -192,24 +198,25 @@ export default function Register() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { paddingHorizontal: 28, paddingBottom: 40 },
-  logoBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    backgroundColor: colors.brandLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    ...shadow,
-  },
-  logo: { width: 64, height: 64 },
-  sub: { fontSize: 14, color: colors.inkSoft, marginTop: 8, lineHeight: 21 },
-  form: { marginTop: 26, gap: 14 },
-  label: { fontSize: 14, fontWeight: '600', color: colors.ink, marginTop: 4 },
-  chips: { flexDirection: 'row', gap: 12 },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 26 },
-  footerText: { color: colors.inkSoft, fontSize: 14 },
-  link: { color: colors.blueDark, fontSize: 14, fontWeight: '600' },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { paddingHorizontal: 28, paddingBottom: 40 },
+    logoBadge: {
+      width: 64,
+      height: 64,
+      borderRadius: 22,
+      backgroundColor: colors.brandLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      ...shadow,
+    },
+    logo: { width: 64, height: 64 },
+    sub: { fontSize: 14, color: colors.inkSoft, marginTop: 8, lineHeight: 21 },
+    form: { marginTop: 26, gap: 14 },
+    label: { fontSize: 14, fontWeight: '600', color: colors.ink, marginTop: 4 },
+    chips: { flexDirection: 'row', gap: 12 },
+    footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 26 },
+    footerText: { color: colors.inkSoft, fontSize: 14 },
+    link: { color: colors.blueDark, fontSize: 14, fontWeight: '600' },
+  });

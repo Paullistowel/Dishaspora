@@ -23,13 +23,18 @@ import Input from '@/components/Input';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { useAuth } from '@/context/AuthContext';
-import { colors } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import type { ThemeColors } from '@/theme';
 import type { Country, User } from '@/types';
 
 export default function EditProfile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState(user?.name ?? '');
   const [country, setCountry] = useState<Country>(user?.country ?? 'GH');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatarUrl ?? null);
@@ -47,7 +52,7 @@ export default function EditProfile() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (asset.fileSize && asset.fileSize > MAX_UPLOAD_BYTES) {
-      Alert.alert('Image too large', 'Please choose a photo under 10 MB.');
+      Alert.alert(t('account.imageTooLarge'), t('account.imageTooLargeMsg'));
       return;
     }
     setUploading(true);
@@ -64,7 +69,7 @@ export default function EditProfile() {
       setAvatarUrl(fresh.avatarUrl);
       await updateUser(fresh);
     } catch (e: any) {
-      Alert.alert('Upload failed', e?.message ?? 'Could not upload the image.');
+      Alert.alert(t('account.uploadFailed'), e?.message ?? t('account.uploadFailedMsg'));
     } finally {
       setUploading(false);
     }
@@ -77,7 +82,7 @@ export default function EditProfile() {
       setAvatarUrl(null);
       await updateUser(fresh);
     } catch (e: any) {
-      Alert.alert('Could not remove', e?.message ?? 'Please try again.');
+      Alert.alert(t('account.couldNotRemove'), e?.message ?? t('account.tryAgain'));
     } finally {
       setUploading(false);
     }
@@ -90,13 +95,13 @@ export default function EditProfile() {
       await updateUser(fresh);
       router.back();
     },
-    onError: (e: any) => Alert.alert('Could not save', e?.message ?? 'Please try again.'),
+    onError: (e: any) => Alert.alert(t('account.couldNotSave'), e?.message ?? t('account.tryAgain')),
   });
 
   const resend = useMutation({
     mutationFn: () => api.post<{ message: string }>('/auth/resend-verification', { email: user?.email }),
-    onSuccess: (r) => Alert.alert('Verification sent', r.message),
-    onError: (e: any) => Alert.alert('Could not send', e?.message ?? 'Please try again.'),
+    onSuccess: (r) => Alert.alert(t('account.verificationSent'), r.message),
+    onError: (e: any) => Alert.alert(t('account.couldNotSend'), e?.message ?? t('account.tryAgain')),
   });
 
   return (
@@ -105,7 +110,7 @@ export default function EditProfile() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Edit profile" />
+        <ScreenHeader title={t('account.editProfile')} />
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
           <TouchableOpacity style={styles.avatarWrap} onPress={pickAvatar} disabled={uploading}>
             <Avatar url={avatarUrl} name={name} size={92} />
@@ -113,16 +118,16 @@ export default function EditProfile() {
               <Ionicons name="camera-outline" size={15} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-          {uploading ? <Text style={styles.uploading}>Uploading photo...</Text> : null}
+          {uploading ? <Text style={styles.uploading}>{t('account.uploadingPhoto')}</Text> : null}
           {avatarUrl ? (
             <TouchableOpacity onPress={removeAvatar} disabled={uploading} style={{ alignSelf: 'center' }}>
-              <Text style={styles.removePhoto}>Remove photo</Text>
+              <Text style={styles.removePhoto}>{t('account.removePhoto')}</Text>
             </TouchableOpacity>
           ) : null}
-          <Input icon="person-outline" placeholder="Full name" value={name} onChangeText={setName} />
+          <Input icon="person-outline" placeholder={t('account.fullName')} value={name} onChangeText={setName} />
 
           {/* Email + verification (Phases 7 & 8) */}
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t('account.email')}</Text>
           <View style={styles.emailRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.emailText} numberOfLines={1}>{user?.email}</Text>
@@ -133,35 +138,35 @@ export default function EditProfile() {
                   color={user?.emailVerified ? colors.success : colors.accentDark}
                 />
                 <Text style={[styles.emailBadge, { color: user?.emailVerified ? colors.success : colors.accentDark }]}>
-                  {user?.emailVerified ? 'Verified' : 'Not verified'}
+                  {user?.emailVerified ? t('account.verified') : t('account.notVerified')}
                 </Text>
                 {user?.pendingEmail ? (
-                  <Text style={styles.pending}>· pending: {user.pendingEmail}</Text>
+                  <Text style={styles.pending}>· {t('account.pending')}: {user.pendingEmail}</Text>
                 ) : null}
               </View>
             </View>
             <TouchableOpacity onPress={() => router.push('/change-email')}>
-              <Text style={styles.link}>Change</Text>
+              <Text style={styles.link}>{t('account.change')}</Text>
             </TouchableOpacity>
           </View>
           {!user?.emailVerified ? (
             <TouchableOpacity onPress={() => resend.mutate()} disabled={resend.isPending}>
               <Text style={styles.link}>
-                {resend.isPending ? 'Sending…' : 'Resend verification email'}
+                {resend.isPending ? t('account.sending') : t('account.resendVerification')}
               </Text>
             </TouchableOpacity>
           ) : null}
-          <Text style={styles.label}>Country</Text>
+          <Text style={styles.label}>{t('account.country')}</Text>
           <View style={styles.chips}>
             <ChoiceChip
-              label="Ghana"
+              label={t('account.ghana')}
               left={<Flag country="GH" size={16} />}
               selected={country === 'GH'}
               onPress={() => setCountry('GH')}
               style={{ flex: 1, justifyContent: 'center' }}
             />
             <ChoiceChip
-              label="Nigeria"
+              label={t('account.nigeria')}
               left={<Flag country="NG" size={16} />}
               selected={country === 'NG'}
               onPress={() => setCountry('NG')}
@@ -169,7 +174,7 @@ export default function EditProfile() {
             />
           </View>
           <PrimaryButton
-            title="Save changes"
+            title={t('account.saveChanges')}
             loading={save.isPending}
             disabled={!name.trim()}
             onPress={() => save.mutate()}
@@ -181,7 +186,8 @@ export default function EditProfile() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   avatarWrap: { alignSelf: 'center' },
   avatarEdit: {
     position: 'absolute',
@@ -194,7 +200,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: colors.card,
   },
   uploading: { textAlign: 'center', fontSize: 12.5, color: colors.inkSoft },
   removePhoto: { textAlign: 'center', fontSize: 13, color: colors.danger, fontWeight: '600' },

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +17,9 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { api } from '@/api';
 import { prettyDate } from '@/date';
-import { colors, radius } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { radius, type ThemeColors } from '@/theme';
 import type { MealSlot, PlannedMeal } from '@/types';
 
 const SLOTS: MealSlot[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
@@ -28,6 +29,9 @@ export default function AddMeal() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ date: string; slot?: MealSlot; id?: string }>();
   const date = params.date;
   const editing = !!params.id;
@@ -39,6 +43,21 @@ export default function AddMeal() {
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const slotLabel = (sl: MealSlot): string => {
+    switch (sl) {
+      case 'BREAKFAST':
+        return t('nutrition.breakfast');
+      case 'LUNCH':
+        return t('nutrition.lunch');
+      case 'DINNER':
+        return t('nutrition.dinner');
+      case 'SNACK':
+        return t('nutrition.snack');
+      default:
+        return sl.charAt(0) + sl.slice(1).toLowerCase();
+    }
+  };
 
   // In edit mode, load the meal from the day's list.
   const existing = useQuery({
@@ -60,7 +79,7 @@ export default function AddMeal() {
   }, [existing.data, editing, params.id]);
 
   const save = async () => {
-    if (!title.trim()) return Alert.alert('Missing name', 'Give the meal a name.');
+    if (!title.trim()) return Alert.alert(t('nutrition.missingNameTitle'), t('nutrition.missingNameMsg'));
     setBusy(true);
     const body = {
       date,
@@ -78,7 +97,7 @@ export default function AddMeal() {
       qc.invalidateQueries({ queryKey: ['diary'] });
       router.back();
     } catch (e: any) {
-      Alert.alert('Could not save', e?.message ?? 'Please try again.');
+      Alert.alert(t('nutrition.couldNotSave'), e?.message ?? t('nutrition.tryAgain'));
     } finally {
       setBusy(false);
     }
@@ -90,7 +109,7 @@ export default function AddMeal() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title={editing ? 'Edit meal' : 'Add meal'} />
+        <ScreenHeader title={editing ? t('nutrition.editMeal') : t('nutrition.addMeal')} />
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
           <Text style={styles.date}>{prettyDate(date)}</Text>
 
@@ -102,22 +121,22 @@ export default function AddMeal() {
                 onPress={() => setSlot(sl)}
               >
                 <Text style={[styles.slotChipText, slot === sl && styles.slotChipTextActive]}>
-                  {sl.charAt(0) + sl.slice(1).toLowerCase()}
+                  {slotLabel(sl)}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Field label="Meal">
+          <Field label={t('nutrition.mealField')} styles={styles}>
             <TextInput
               style={styles.input}
               value={title}
               onChangeText={setTitle}
-              placeholder="e.g. Jollof rice with chicken"
+              placeholder={t('nutrition.mealPlaceholder')}
               placeholderTextColor={colors.inkFaint}
             />
           </Field>
-          <Field label="Calories (kcal)">
+          <Field label={t('nutrition.caloriesField')} styles={styles}>
             <TextInput
               style={styles.input}
               value={calories}
@@ -128,25 +147,35 @@ export default function AddMeal() {
             />
           </Field>
           <View style={styles.macroRow}>
-            <Field label="Protein (g)" style={{ flex: 1 }}>
+            <Field label={t('nutrition.proteinG')} style={{ flex: 1 }} styles={styles}>
               <TextInput style={styles.input} value={protein} onChangeText={setProtein} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.inkFaint} />
             </Field>
-            <Field label="Carbs (g)" style={{ flex: 1 }}>
+            <Field label={t('nutrition.carbsG')} style={{ flex: 1 }} styles={styles}>
               <TextInput style={styles.input} value={carbs} onChangeText={setCarbs} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.inkFaint} />
             </Field>
-            <Field label="Fat (g)" style={{ flex: 1 }}>
+            <Field label={t('nutrition.fatG')} style={{ flex: 1 }} styles={styles}>
               <TextInput style={styles.input} value={fat} onChangeText={setFat} keyboardType="number-pad" placeholder="0" placeholderTextColor={colors.inkFaint} />
             </Field>
           </View>
 
-          <PrimaryButton title={editing ? 'Save changes' : 'Add to plan'} loading={busy} onPress={save} style={{ marginTop: 8 }} />
+          <PrimaryButton title={editing ? t('nutrition.saveChanges') : t('nutrition.addToPlan')} loading={busy} onPress={save} style={{ marginTop: 8 }} />
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: any }) {
+function Field({
+  label,
+  children,
+  style,
+  styles,
+}: {
+  label: string;
+  children: React.ReactNode;
+  style?: any;
+  styles: ReturnType<typeof makeStyles>;
+}) {
   return (
     <View style={style}>
       <Text style={styles.label}>{label}</Text>
@@ -155,21 +184,22 @@ function Field({ label, children, style }: { label: string; children: React.Reac
   );
 }
 
-const styles = StyleSheet.create({
-  date: { fontSize: 14, fontWeight: '700', color: colors.accentDark },
-  slotRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  slotChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface },
-  slotChipActive: { backgroundColor: colors.accent },
-  slotChipText: { fontSize: 13, fontWeight: '600', color: colors.inkSoft },
-  slotChipTextActive: { color: '#FFF' },
-  label: { fontSize: 12.5, fontWeight: '700', color: colors.inkSoft, marginBottom: 6 },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    height: 48,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  macroRow: { flexDirection: 'row', gap: 10 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    date: { fontSize: 14, fontWeight: '700', color: colors.accentDark },
+    slotRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+    slotChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface },
+    slotChipActive: { backgroundColor: colors.accent },
+    slotChipText: { fontSize: 13, fontWeight: '600', color: colors.inkSoft },
+    slotChipTextActive: { color: '#FFF' },
+    label: { fontSize: 12.5, fontWeight: '700', color: colors.inkSoft, marginBottom: 6 },
+    input: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      height: 48,
+      fontSize: 15,
+      color: colors.ink,
+    },
+    macroRow: { flexDirection: 'row', gap: 10 },
+  });

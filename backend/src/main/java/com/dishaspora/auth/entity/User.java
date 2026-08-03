@@ -67,6 +67,19 @@ public class User {
     private int fatGoal = 70;
     private int waterGoalMl = 2000;
 
+    /**
+     * Dietary preferences for AI personalization + allergen warnings. Stored as
+     * comma-separated values to avoid join tables (small, user-scoped lists).
+     * allergies: e.g. "peanuts,shellfish"; dietaryPreferences: e.g. "vegetarian,halal";
+     * fitnessGoal: single value e.g. "lose_weight" | "build_muscle" | "maintain".
+     */
+    @Column(length = 500)
+    private String allergies = "";
+    @Column(length = 500)
+    private String dietaryPreferences = "";
+    @Column(length = 40)
+    private String fitnessGoal = "";
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -128,6 +141,21 @@ public class User {
     public void setFatGoal(int fatGoal) { this.fatGoal = fatGoal; }
     public int getWaterGoalMl() { return waterGoalMl; }
     public void setWaterGoalMl(int waterGoalMl) { this.waterGoalMl = waterGoalMl; }
+    public String getAllergies() { return allergies == null ? "" : allergies; }
+    public void setAllergies(String allergies) { this.allergies = allergies; }
+    public String getDietaryPreferences() { return dietaryPreferences == null ? "" : dietaryPreferences; }
+    public void setDietaryPreferences(String dietaryPreferences) { this.dietaryPreferences = dietaryPreferences; }
+    public String getFitnessGoal() { return fitnessGoal == null ? "" : fitnessGoal; }
+    public void setFitnessGoal(String fitnessGoal) { this.fitnessGoal = fitnessGoal; }
+    /** Allergies as a lowercase list (empty if none set). */
+    public java.util.List<String> allergyList() {
+        String a = getAllergies().trim();
+        if (a.isEmpty()) return java.util.List.of();
+        return java.util.Arrays.stream(a.split(","))
+                .map(s -> s.trim().toLowerCase())
+                .filter(s -> !s.isEmpty())
+                .toList();
+    }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

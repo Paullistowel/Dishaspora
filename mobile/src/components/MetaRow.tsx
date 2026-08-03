@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 export interface MetaItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -10,6 +11,8 @@ export interface MetaItem {
 
 /** Detail meta row: three icon + small text items, separated. */
 export default function MetaRow({ items, style }: { items: MetaItem[]; style?: ViewStyle }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[styles.row, style]}>
       {items.map((item, i) => (
@@ -25,7 +28,8 @@ export default function MetaRow({ items, style }: { items: MetaItem[]; style?: V
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',

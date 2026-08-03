@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import type { ThemeColors } from '../theme';
 import CircleButton from './CircleButton';
 
-/** Standard sub-screen header: floating back circle + centered title. */
+/** Standard sub-screen header: floating back circle + centered title. Theme-aware. */
 export default function ScreenHeader({
   title,
   right,
@@ -16,6 +17,8 @@ export default function ScreenHeader({
   onBack?: () => void;
 }) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.row}>
       <CircleButton
@@ -31,21 +34,22 @@ export default function ScreenHeader({
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.ink,
-    marginHorizontal: 8,
-  },
-  right: { minWidth: 42, alignItems: 'flex-end' },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+    },
+    title: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.ink,
+      marginHorizontal: 8,
+    },
+    right: { minWidth: 42, alignItems: 'flex-end' },
+  });

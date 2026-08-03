@@ -16,43 +16,49 @@ import EmptyState from '@/components/EmptyState';
 import RecipeCard from '@/components/RecipeCard';
 import SearchRow from '@/components/SearchRow';
 import { SkeletonGrid } from '@/components/Skeleton';
-import { colors } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import type { ThemeColors } from '@/theme';
 import type { Page, Recipe, RecipeCategory, SmartSearchResponse } from '@/types';
-
-const CATEGORIES: { label: string; value: RecipeCategory }[] = [
-  { label: 'Local', value: 'LOCAL' },
-  { label: 'Continental', value: 'CONTINENTAL' },
-  { label: 'Foreign', value: 'FOREIGN' },
-  { label: 'Drinks', value: 'DRINK' },
-];
-
-const CALORIE_CHIPS = [
-  { label: 'Under 400 kcal', value: 400 },
-  { label: 'Under 600 kcal', value: 600 },
-];
-const TIME_CHIPS = [
-  { label: 'Under 30 min', value: 30 },
-  { label: 'Under 60 min', value: 60 },
-];
 
 const RECENTS_KEY = 'dishaspora.recentSearches';
 const MAX_RECENTS = 6;
-const POPULAR_SEARCHES = [
-  'Jollof rice',
-  'Quick breakfast under 20 min',
-  'High-protein Nigerian meals',
-  'Vegetarian soups',
-  'Under 400 kcal dinners',
-];
 
 export default function Search() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [input, setInput] = useState('');
   const [smartQuery, setSmartQuery] = useState('');
   const [category, setCategory] = useState<RecipeCategory | null>(null);
   const [maxCalories, setMaxCalories] = useState<number | null>(null);
   const [maxMinutes, setMaxMinutes] = useState<number | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
+
+  const CATEGORIES: { label: string; value: RecipeCategory }[] = [
+    { label: t('search.categoryLocal'), value: 'LOCAL' },
+    { label: t('search.categoryContinental'), value: 'CONTINENTAL' },
+    { label: t('search.categoryForeign'), value: 'FOREIGN' },
+    { label: t('search.categoryDrinks'), value: 'DRINK' },
+  ];
+
+  const CALORIE_CHIPS = [
+    { label: `${t('search.under')} 400 ${t('search.kcal')}`, value: 400 },
+    { label: `${t('search.under')} 600 ${t('search.kcal')}`, value: 600 },
+  ];
+  const TIME_CHIPS = [
+    { label: `${t('search.under')} 30 ${t('search.min')}`, value: 30 },
+    { label: `${t('search.under')} 60 ${t('search.min')}`, value: 60 },
+  ];
+
+  const POPULAR_SEARCHES = [
+    t('search.popularJollof'),
+    t('search.popularQuickBreakfast'),
+    t('search.popularHighProtein'),
+    t('search.popularVegSoups'),
+    t('search.popularUnder400'),
+  ];
 
   // Load persisted recent searches once.
   useEffect(() => {
@@ -125,10 +131,10 @@ export default function Search() {
     if (f.q) chips.push({ key: 'q', label: `“${f.q}”` });
     if (f.category) chips.push({ key: 'category', label: f.category.toLowerCase() });
     if (f.cuisine) chips.push({ key: 'cuisine', label: f.cuisine });
-    if (f.maxCalories) chips.push({ key: 'maxCalories', label: `≤ ${f.maxCalories} kcal` });
-    if (f.maxMinutes) chips.push({ key: 'maxMinutes', label: `≤ ${f.maxMinutes} min` });
+    if (f.maxCalories) chips.push({ key: 'maxCalories', label: `≤ ${f.maxCalories} ${t('search.kcal')}` });
+    if (f.maxMinutes) chips.push({ key: 'maxMinutes', label: `≤ ${f.maxMinutes} ${t('search.min')}` });
     return chips;
-  }, [smart.data, smartMode]);
+  }, [smart.data, smartMode, t]);
 
   const submit = () => {
     const clean = input.trim();
@@ -157,7 +163,7 @@ export default function Search() {
           value={input}
           onChangeText={setInput}
           onSubmit={submit}
-          placeholder="Try “fast Ghanaian meals under 30 min”"
+          placeholder={t('search.placeholder')}
         />
       </View>
 
@@ -178,9 +184,9 @@ export default function Search() {
             {recents.length > 0 ? (
               <View style={{ marginBottom: 16 }}>
                 <View style={styles.suggestHeader}>
-                  <Text style={styles.suggestTitle}>Recent searches</Text>
+                  <Text style={styles.suggestTitle}>{t('search.recentSearches')}</Text>
                   <Text style={styles.clearLink} onPress={clearRecents}>
-                    Clear
+                    {t('search.clear')}
                   </Text>
                 </View>
                 <View style={styles.suggestChips}>
@@ -190,7 +196,7 @@ export default function Search() {
                 </View>
               </View>
             ) : null}
-            <Text style={styles.suggestTitle}>Popular searches</Text>
+            <Text style={styles.suggestTitle}>{t('search.popularSearches')}</Text>
             <View style={styles.suggestChips}>
               {POPULAR_SEARCHES.map((s) => (
                 <ChoiceChip key={s} label={s} onPress={() => runSuggestion(s)} />
@@ -205,7 +211,7 @@ export default function Search() {
               <ChoiceChip key={chip.key} label={chip.label} selected onRemove={clearSmart} />
             ))}
             {parsedChips.length > 0 ? (
-              <ChoiceChip label="Clear" onPress={clearSmart} />
+              <ChoiceChip label={t('search.clear')} onPress={clearSmart} />
             ) : null}
           </View>
         ) : (
@@ -231,7 +237,7 @@ export default function Search() {
             >
               {CALORIE_CHIPS.map((c) => (
                 <ChoiceChip
-                  key={c.label}
+                  key={c.value}
                   label={c.label}
                   selected={maxCalories === c.value}
                   onPress={() => setMaxCalories(maxCalories === c.value ? null : c.value)}
@@ -239,7 +245,7 @@ export default function Search() {
               ))}
               {TIME_CHIPS.map((c) => (
                 <ChoiceChip
-                  key={c.label}
+                  key={c.value}
                   label={c.label}
                   selected={maxMinutes === c.value}
                   onPress={() => setMaxMinutes(maxMinutes === c.value ? null : c.value)}
@@ -255,19 +261,15 @@ export default function Search() {
           ) : (smartMode ? smart.isError : browse.isError) ? (
             <EmptyState
               image={2}
-              message="Search is unavailable right now. Check your connection and try again."
-              actionLabel="Retry"
+              message={t('search.errorMessage')}
+              actionLabel={t('common.retry')}
               onAction={() => (smartMode ? smart.refetch() : browse.refetch())}
             />
           ) : recipes.length === 0 ? (
             <EmptyState
               image={2}
-              message={
-                smartMode
-                  ? 'No dishes matched that search. Try different words — or fewer filters.'
-                  : 'No recipes match these filters yet.'
-              }
-              actionLabel="Clear search"
+              message={smartMode ? t('search.noMatch') : t('search.noFilterMatch')}
+              actionLabel={t('search.clearSearch')}
               onAction={() => {
                 clearSmart();
                 setCategory(null);
@@ -294,27 +296,28 @@ export default function Search() {
   );
 }
 
-const styles = StyleSheet.create({
-  searchWrap: { paddingHorizontal: 20, marginBottom: 14 },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  chipsRowScroll: { paddingHorizontal: 20, gap: 8, marginBottom: 10, paddingBottom: 2 },
-  suggestWrap: { paddingHorizontal: 20, marginBottom: 8 },
-  suggestHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  suggestTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, marginBottom: 10 },
-  clearLink: { fontSize: 13, fontWeight: '600', color: colors.brandDark },
-  suggestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  results: { paddingHorizontal: 20, paddingTop: 8 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  gridCell: { width: '47%', flexGrow: 1 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    searchWrap: { paddingHorizontal: 20, marginBottom: 14 },
+    chipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingHorizontal: 20,
+      marginBottom: 12,
+    },
+    chipsRowScroll: { paddingHorizontal: 20, gap: 8, marginBottom: 10, paddingBottom: 2 },
+    suggestWrap: { paddingHorizontal: 20, marginBottom: 8 },
+    suggestHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    suggestTitle: { fontSize: 14, fontWeight: '700', color: colors.ink, marginBottom: 10 },
+    clearLink: { fontSize: 13, fontWeight: '600', color: colors.brandDark },
+    suggestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    results: { paddingHorizontal: 20, paddingTop: 8 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+    gridCell: { width: '47%', flexGrow: 1 },
+  });

@@ -21,10 +21,10 @@ import { SkeletonGrid } from '@/components/Skeleton';
 import { ErrorView, LoadingView } from '@/components/StatusViews';
 import { IMG } from '@/config';
 import { useStartChat } from '@/hooks/useChat';
-import { colors, shadow } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadow, type ThemeColors } from '@/theme';
 import type { Listing, Review, Vendor } from '@/types';
-
-const SEGMENTS = ['All Items', 'Popular'];
 
 export default function VendorStorefront() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,8 +32,14 @@ export default function VendorStorefront() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const startChat = useStartChat();
-  const [segment, setSegment] = useState('All Items');
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Store the segment index (stable) rather than the localized label, so
+  // switching language doesn't break the active-segment comparison.
+  const [segIndex, setSegIndex] = useState(0);
   const [showReviews, setShowReviews] = useState(false);
+  const segments = [t('vendor.allItems'), t('vendor.popular')];
 
   const vendor = useQuery({
     queryKey: ['vendor', vendorId],
@@ -51,15 +57,15 @@ export default function VendorStorefront() {
 
   const rows = useMemo(() => {
     const all = listings.data ?? [];
-    if (segment === 'Popular') return [...all].sort((a, b) => (b.compareAtMinor ? 1 : 0) - (a.compareAtMinor ? 1 : 0)).slice(0, 6);
+    if (segIndex === 1) return [...all].sort((a, b) => (b.compareAtMinor ? 1 : 0) - (a.compareAtMinor ? 1 : 0)).slice(0, 6);
     return all;
-  }, [listings.data, segment]);
+  }, [listings.data, segIndex]);
 
   const openChat = () => startChat(vendorId);
 
   if (vendor.isLoading) return <LoadingView />;
   if (vendor.isError || !vendor.data)
-    return <ErrorView message="Could not load this vendor." onRetry={() => vendor.refetch()} />;
+    return <ErrorView message={t('vendor.loadVendorError')} onRetry={() => vendor.refetch()} />;
   const v = vendor.data;
 
   return (
@@ -85,7 +91,7 @@ export default function VendorStorefront() {
                 onPress={() => setShowReviews((s) => !s)}
               >
                 <Text style={styles.reviewsChipText}>
-                  {showReviews ? 'Hide reviews' : 'See reviews'}
+                  {showReviews ? t('vendor.hideReviews') : t('vendor.seeReviews')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.chatBtn} onPress={openChat}>
@@ -119,16 +125,16 @@ export default function VendorStorefront() {
           ) : null}
 
           <SegmentChips
-            segments={SEGMENTS}
-            value={segment}
-            onChange={setSegment}
+            segments={segments}
+            value={segments[segIndex]}
+            onChange={(val) => setSegIndex(Math.max(0, segments.indexOf(val)))}
             style={{ marginTop: 18 }}
           />
 
           <Text style={styles.allItems}>
-            {segment === 'All Items' ? `All items in ${v.name}` : 'Popular right now'}
+            {segIndex === 0 ? `${t('vendor.allItemsIn')} ${v.name}` : t('vendor.popularNow')}
           </Text>
-          <Text style={styles.allItemsSub}>Discover our recommendations for you</Text>
+          <Text style={styles.allItemsSub}>{t('vendor.recommendations')}</Text>
 
           {listings.isLoading ? (
             <View style={{ marginTop: 16 }}>
@@ -157,63 +163,64 @@ export default function VendorStorefront() {
   );
 }
 
-const styles = StyleSheet.create({
-  cover: {
-    width: '100%',
-    height: 210,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    backgroundColor: colors.surfaceAlt,
-  },
-  logoWrap: {
-    position: 'absolute',
-    left: 20,
-    bottom: -26,
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    ...shadow,
-  },
-  headerBlock: { paddingHorizontal: 20, paddingTop: 38 },
-  name: { fontSize: 21, fontWeight: '800', color: colors.ink },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  ratingText: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  ratingCount: { fontSize: 12.5, color: colors.inkFaint },
-  reviewsChip: {
-    marginLeft: 'auto',
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  reviewsChipText: { fontSize: 12, color: colors.inkSoft, fontWeight: '600' },
-  chatBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bio: { fontSize: 13, color: colors.inkSoft, marginTop: 10, lineHeight: 19 },
-  location: { fontSize: 12, color: colors.inkFaint, marginTop: 4 },
-  reviewsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    marginTop: 14,
-    gap: 12,
-    ...shadow,
-  },
-  reviewRow: { flexDirection: 'row', gap: 10 },
-  reviewTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reviewName: { fontSize: 13, fontWeight: '700', color: colors.ink },
-  reviewStars: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  reviewRating: { fontSize: 12, fontWeight: '700', color: colors.ink },
-  reviewComment: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2, lineHeight: 17 },
-  allItems: { fontSize: 17, fontWeight: '700', color: colors.ink, marginTop: 20 },
-  allItemsSub: { fontSize: 12.5, color: colors.inkFaint, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 16 },
-  gridCell: { width: '47%', flexGrow: 1 },
-  back: { position: 'absolute', left: 16 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    cover: {
+      width: '100%',
+      height: 210,
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
+      backgroundColor: colors.surfaceAlt,
+    },
+    logoWrap: {
+      position: 'absolute',
+      left: 20,
+      bottom: -26,
+      borderRadius: 20,
+      borderWidth: 3,
+      borderColor: colors.card,
+      ...shadow,
+    },
+    headerBlock: { paddingHorizontal: 20, paddingTop: 38 },
+    name: { fontSize: 21, fontWeight: '800', color: colors.ink },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+    ratingText: { fontSize: 14, fontWeight: '700', color: colors.ink },
+    ratingCount: { fontSize: 12.5, color: colors.inkFaint },
+    reviewsChip: {
+      marginLeft: 'auto',
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+    },
+    reviewsChipText: { fontSize: 12, color: colors.inkSoft, fontWeight: '600' },
+    chatBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    bio: { fontSize: 13, color: colors.inkSoft, marginTop: 10, lineHeight: 19 },
+    location: { fontSize: 12, color: colors.inkFaint, marginTop: 4 },
+    reviewsCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 14,
+      marginTop: 14,
+      gap: 12,
+      ...shadow,
+    },
+    reviewRow: { flexDirection: 'row', gap: 10 },
+    reviewTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    reviewName: { fontSize: 13, fontWeight: '700', color: colors.ink },
+    reviewStars: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    reviewRating: { fontSize: 12, fontWeight: '700', color: colors.ink },
+    reviewComment: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2, lineHeight: 17 },
+    allItems: { fontSize: 17, fontWeight: '700', color: colors.ink, marginTop: 20 },
+    allItemsSub: { fontSize: 12.5, color: colors.inkFaint, marginTop: 2 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 16 },
+    gridCell: { width: '47%', flexGrow: 1 },
+    back: { position: 'absolute', left: 16 },
+  });

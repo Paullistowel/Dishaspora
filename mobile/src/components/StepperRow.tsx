@@ -23,6 +23,7 @@ export default function StepperRow({
   onRemove?: () => void;
 }) {
   const { listing, qty } = item;
+  const isMeal = listing.type === 'FOOD';
   return (
     <View style={styles.card}>
       <Image
@@ -32,9 +33,21 @@ export default function StepperRow({
       />
       <View style={styles.body}>
         <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={2}>
-            {listing.title}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <View style={[styles.badge, isMeal ? styles.badgeMeal : styles.badgeIngredient]}>
+              <Ionicons
+                name={isMeal ? 'restaurant' : 'leaf'}
+                size={10}
+                color={isMeal ? colors.brandDark : colors.accentDark}
+              />
+              <Text style={[styles.badgeText, { color: isMeal ? colors.brandDark : colors.accentDark }]}>
+                {isMeal ? 'Meal' : 'Ingredient'}
+              </Text>
+            </View>
+            <Text style={styles.title} numberOfLines={2}>
+              {listing.title}
+            </Text>
+          </View>
           {onRemove ? (
             <TouchableOpacity
               onPress={onRemove}
@@ -112,7 +125,20 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, justifyContent: 'space-between' },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  title: { flex: 1, fontSize: 14.5, fontWeight: '600', color: colors.ink },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  badgeMeal: { backgroundColor: colors.brandLight },
+  badgeIngredient: { backgroundColor: colors.accentLight },
+  badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.2 },
+  title: { fontSize: 14.5, fontWeight: '600', color: colors.ink },
   removeBtn: { padding: 2 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   metaText: { fontSize: 12, color: colors.inkFaint },

@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 /** Rounded surface input with a leading icon (auth/forms). */
 export default function Input({
@@ -10,6 +11,8 @@ export default function Input({
   multiline,
   ...props
 }: TextInputProps & { icon?: keyof typeof Ionicons.glyphMap; style?: ViewStyle }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[styles.wrap, multiline ? styles.multiline : styles.single, style]}>
       {icon ? (
@@ -25,7 +28,8 @@ export default function Input({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',

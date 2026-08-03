@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
-import { colors } from '../theme';
+import { type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import PrimaryButton from './PrimaryButton';
 
 const IMAGES = {
@@ -24,6 +25,8 @@ export default function EmptyState({
   image?: 1 | 2 | 3;
   style?: ViewStyle;
 }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[styles.wrap, style]}>
       <Image source={IMAGES[image]} style={styles.image} contentFit="contain" />
@@ -35,7 +38,8 @@ export default function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   wrap: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 32 },
   image: { width: 160, height: 160, marginBottom: 16 },
   message: {

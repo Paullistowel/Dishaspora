@@ -23,23 +23,30 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api';
 import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import CircleButton from '@/components/CircleButton';
 import Flag from '@/components/Flag';
 import PrimaryButton from '@/components/PrimaryButton';
 import { ErrorView, LoadingView } from '@/components/StatusViews';
 import { IMG } from '@/config';
-import { colors, shadowStrong } from '@/theme';
+import { shadowStrong, type ThemeColors } from '@/theme';
 import type { CookedResponse, Recipe } from '@/types';
 import { scaleSteps } from '@/utils/scaling';
 
+// Store a stable color INDEX (not a resolved color) so confetti hues follow the
+// active theme rather than being baked in at module load.
 const CONFETTI = Array.from({ length: 14 }).map((_, i) => ({
   angle: (i / 14) * Math.PI * 2,
   distance: 90 + (i % 3) * 26,
-  color: [colors.brand, colors.accent, colors.blue, colors.success][i % 4],
+  colorIndex: i % 4,
   delay: 120 + i * 24,
 }));
 
 function ConfettiDot({ dot }: { dot: (typeof CONFETTI)[number] }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const palette = [colors.brand, colors.accent, colors.blue, colors.success];
   const t = useSharedValue(0);
   useEffect(() => {
     t.value = withDelay(dot.delay, withSpring(1, { damping: 12, stiffness: 90 }));
@@ -52,7 +59,7 @@ function ConfettiDot({ dot }: { dot: (typeof CONFETTI)[number] }) {
       { scale: 0.6 + t.value * 0.7 },
     ],
   }));
-  return <Animated.View style={[styles.confetti, { backgroundColor: dot.color }, style]} />;
+  return <Animated.View style={[styles.confetti, { backgroundColor: palette[dot.colorIndex] }, style]} />;
 }
 
 function StampModal({
@@ -62,6 +69,9 @@ function StampModal({
   result: CookedResponse;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const scale = useSharedValue(0);
   const rotate = useSharedValue(-30);
   useEffect(() => {
@@ -89,12 +99,12 @@ function StampModal({
             </Animated.View>
           </View>
           <Text style={styles.modalTitle}>
-            {newStamp ? 'New passport stamp!' : 'Dish cooked!'}
+            {newStamp ? t('recipe.newPassportStamp') : t('recipe.dishCooked')}
           </Text>
           <Text style={styles.modalSub}>
             {newStamp
-              ? `Welcome to ${stamp.countryName} — your ${stamp.cuisine} journey begins.`
-              : `${stamp.countryName} progress: ${stamp.recipesCooked}/${stamp.totalRecipes} dishes cooked.`}
+              ? `${t('recipe.welcomeTo')} ${stamp.countryName} — ${t('recipe.your')} ${stamp.cuisine} ${t('recipe.journeyBegins')}`
+              : `${stamp.countryName} ${t('recipe.progress')}: ${stamp.recipesCooked}/${stamp.totalRecipes} ${t('recipe.dishesCookedSuffix')}`}
           </Text>
           <View style={styles.progressTrack}>
             <View
@@ -104,7 +114,7 @@ function StampModal({
               ]}
             />
           </View>
-          <PrimaryButton title="Continue" onPress={onClose} style={{ marginTop: 20, alignSelf: 'stretch' }} />
+          <PrimaryButton title={t('recipe.continue')} onPress={onClose} style={{ marginTop: 20, alignSelf: 'stretch' }} />
         </Animated.View>
       </View>
     </Modal>
@@ -117,6 +127,9 @@ export default function SnapAndCook() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [index, setIndex] = useState(0);
   const [stampResult, setStampResult] = useState<CookedResponse | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -134,7 +147,7 @@ export default function SnapAndCook() {
       queryClient.invalidateQueries({ queryKey: ['passport'] });
       queryClient.invalidateQueries({ queryKey: ['recipe', Number(id)] });
     },
-    onError: () => toast.error("Couldn't save this to your passport. Try again."),
+    onError: () => toast.error(t('recipe.cookedSaveError')),
   });
 
   // Honour the serving count chosen on the detail screen so the step timers
@@ -179,7 +192,7 @@ export default function SnapAndCook() {
 
   if (recipe.isLoading) return <LoadingView />;
   if (recipe.isError || !recipe.data || steps.length === 0)
-    return <ErrorView message="No cooking steps available for this recipe." onRetry={() => recipe.refetch()} />;
+    return <ErrorView message={t('recipe.noSteps')} onRetry={() => recipe.refetch()} />;
 
   const isLast = index === steps.length - 1;
   const fmtTime = (s: number) =>
@@ -192,7 +205,7 @@ export default function SnapAndCook() {
         <CircleButton icon="close" onPress={() => router.back()} />
         <View style={styles.stepChip}>
           <Text style={styles.stepChipText}>
-            Step {index + 1} of {steps.length}
+            {t('recipe.step')} {index + 1} {t('recipe.of')} {steps.length}
           </Text>
         </View>
         <View style={{ width: 42 }} />
@@ -221,10 +234,10 @@ export default function SnapAndCook() {
               <Ionicons name="timer-outline" size={18} color="#FFFFFF" />
               <Text style={styles.timerText}>
                 {secondsLeft === 0
-                  ? 'Time is up!'
+                  ? t('recipe.timeUp')
                   : secondsLeft !== null
                     ? fmtTime(secondsLeft)
-                    : `${step.durationMinutes} min`}
+                    : `${step.durationMinutes} ${t('recipe.min')}`}
               </Text>
             </View>
           ) : null}
@@ -241,7 +254,7 @@ export default function SnapAndCook() {
         />
         {isLast ? (
           <PrimaryButton
-            title="Mark as cooked"
+            title={t('recipe.markAsCooked')}
             loading={cooked.isPending}
             onPress={() => cooked.mutate()}
             style={{ flex: 1, marginHorizontal: 14 }}
@@ -256,7 +269,7 @@ export default function SnapAndCook() {
         <CircleButton
           icon="chevron-forward"
           size={56}
-          bg={isLast ? '#FFFFFF' : colors.accent}
+          bg={isLast ? colors.card : colors.accent}
           color={isLast ? colors.ink : '#FFFFFF'}
           onPress={() => !isLast && setIndex(index + 1)}
           style={{ opacity: isLast ? 0.35 : 1 }}
@@ -276,7 +289,8 @@ export default function SnapAndCook() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -343,7 +357,7 @@ const styles = StyleSheet.create({
     padding: 28,
   },
   modalCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 28,
     padding: 26,
     alignItems: 'center',

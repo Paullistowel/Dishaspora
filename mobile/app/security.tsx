@@ -19,14 +19,19 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { useToast } from '@/context/ToastContext';
 import { meetsPasswordPolicy } from '@/validation';
-import { colors, radius, shadow } from '@/theme';
+import { radius, shadow, type ThemeColors } from '@/theme';
 
 export default function Security() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const toast = useToast();
 
   const [current, setCurrent] = useState('');
@@ -44,34 +49,34 @@ export default function Security() {
       setCurrent('');
       setNext('');
       setConfirm('');
-      toast.success(r.message ?? 'Password updated.');
+      toast.success(r.message ?? t('account.passwordUpdated'));
     },
     onError: (e) =>
-      toast.error(e instanceof ApiError ? e.message : 'Could not change password.'),
+      toast.error(e instanceof ApiError ? e.message : t('account.couldNotChangePassword')),
   });
 
   const deleteAccount = useMutation({
     mutationFn: () => api.del<{ message: string }>('/users/me', { password: delPassword }),
     onSuccess: async () => {
       await logout();
-      toast.info('Your account has been deleted.');
+      toast.info(t('account.accountDeleted'));
       router.replace('/(auth)/login');
     },
     onError: (e) =>
-      toast.error(e instanceof ApiError ? e.message : 'Could not delete account.'),
+      toast.error(e instanceof ApiError ? e.message : t('account.couldNotDeleteAccount')),
   });
 
   const submitPassword = () => {
     if (!current || !next || !confirm) {
-      toast.error('Fill in all password fields.');
+      toast.error(t('account.fillPasswordFields'));
       return;
     }
     if (!meetsPasswordPolicy(next)) {
-      toast.error('New password needs 8+ chars with upper, lower and a number.');
+      toast.error(t('account.passwordPolicyError'));
       return;
     }
     if (next !== confirm) {
-      toast.error('New passwords do not match.');
+      toast.error(t('account.passwordsDoNotMatch'));
       return;
     }
     changePw.mutate();
@@ -79,15 +84,15 @@ export default function Security() {
 
   const confirmDelete = () => {
     if (!delPassword) {
-      toast.error('Enter your password to delete your account.');
+      toast.error(t('account.enterPasswordToDelete'));
       return;
     }
     Alert.alert(
-      'Delete account?',
-      'This permanently disables your account and signs you out. Your order history is kept for records but you will lose access. This cannot be undone.',
+      t('account.deleteAccountConfirmTitle'),
+      t('account.deleteAccountConfirmMsg'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteAccount.mutate() },
+        { text: t('account.cancel'), style: 'cancel' },
+        { text: t('account.delete'), style: 'destructive', onPress: () => deleteAccount.mutate() },
       ]
     );
   };
@@ -98,7 +103,7 @@ export default function Security() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Security" />
+        <ScreenHeader title={t('account.security')} />
         <ScrollView
           contentContainerStyle={{ padding: 20, gap: 22, paddingBottom: 48 }}
           keyboardShouldPersistTaps="handled"
@@ -106,14 +111,13 @@ export default function Security() {
         >
           {/* Change password */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Change password</Text>
+            <Text style={styles.cardTitle}>{t('account.changePassword')}</Text>
             <Text style={styles.hint}>
-              Signed in as {user?.email}. Use at least 8 characters with an uppercase letter,
-              a lowercase letter and a number.
+              {t('account.signedInAs')} {user?.email}. {t('account.pwPolicyHint')}
             </Text>
             <Input
               icon="lock-closed-outline"
-              placeholder="Current password"
+              placeholder={t('account.currentPassword')}
               value={current}
               onChangeText={setCurrent}
               secureTextEntry
@@ -121,7 +125,7 @@ export default function Security() {
             />
             <Input
               icon="key-outline"
-              placeholder="New password"
+              placeholder={t('account.newPassword')}
               value={next}
               onChangeText={setNext}
               secureTextEntry
@@ -130,14 +134,14 @@ export default function Security() {
             <PasswordStrengthMeter password={next} />
             <Input
               icon="checkmark-done-outline"
-              placeholder="Confirm new password"
+              placeholder={t('account.confirmNewPassword')}
               value={confirm}
               onChangeText={setConfirm}
               secureTextEntry
               textContentType="newPassword"
             />
             <PrimaryButton
-              title="Update password"
+              title={t('account.updatePassword')}
               loading={changePw.isPending}
               onPress={submitPassword}
               style={{ marginTop: 4 }}
@@ -148,14 +152,14 @@ export default function Security() {
           <PressableScale
             onPress={() => router.push('/change-email')}
             scaleTo={0.98}
-            accessibilityLabel="Change email address"
+            accessibilityLabel={t('account.changeEmailA11y')}
           >
             <View style={styles.linkRow}>
               <View style={styles.linkIcon}>
                 <Ionicons name="mail-outline" size={18} color={colors.brandDark} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.linkTitle}>Change email</Text>
+                <Text style={styles.linkTitle}>{t('account.changeEmail')}</Text>
                 <Text style={styles.linkSub}>{user?.email}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.inkFaint} />
@@ -164,19 +168,19 @@ export default function Security() {
 
           {/* Danger zone */}
           <View style={[styles.card, styles.danger]}>
-            <Text style={[styles.cardTitle, { color: colors.danger }]}>Delete account</Text>
+            <Text style={[styles.cardTitle, { color: colors.danger }]}>{t('account.deleteAccount')}</Text>
             <Text style={styles.hint}>
-              Permanently disable your account. This can't be undone — confirm with your password.
+              {t('account.deleteAccountHint')}
             </Text>
             <Input
               icon="lock-closed-outline"
-              placeholder="Your password"
+              placeholder={t('account.yourPassword')}
               value={delPassword}
               onChangeText={setDelPassword}
               secureTextEntry
             />
             <PrimaryButton
-              title="Delete my account"
+              title={t('account.deleteMyAccount')}
               variant="danger"
               loading={deleteAccount.isPending}
               onPress={confirmDelete}
@@ -189,9 +193,10 @@ export default function Security() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: 18,
     gap: 12,
@@ -204,7 +209,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: 16,
     ...shadow,

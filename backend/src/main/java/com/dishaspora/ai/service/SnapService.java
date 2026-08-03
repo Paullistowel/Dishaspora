@@ -60,8 +60,9 @@ public class SnapService {
               "confidence": integer,           // 0-100, your confidence in the identification
               "ingredients": [ { "name": string, "quantity": string } ],   // 4-12 items, realistic amounts
               "steps": [ string ],             // 4-8 concise cooking steps, imperative voice
-              "nutrition": { "calories": integer, "protein": integer, "carbs": integer, "fat": integer, "servings": integer }
+              "nutrition": { "calories": integer, "protein": integer, "carbs": integer, "fat": integer, "servings": integer },
               // nutrition is PER SERVING; grams for protein/carbs/fat; servings is how many the recipe yields
+              "allergens": [ string ]          // common allergens present, lowercase (e.g. "peanuts","shellfish","dairy","gluten","eggs","soy","fish","tree nuts"); [] if none
             }
 
             If the image is not food, set isFood=false and return empty ingredients/steps and zeroed nutrition.
@@ -141,6 +142,14 @@ public class SnapService {
                 nut.path("fat").asInt(0),
                 Math.max(1, nut.path("servings").asInt(1)));
 
+        // Allergens present in the dish, plus the subset the user is allergic to.
+        List<String> allergens = new ArrayList<>();
+        for (JsonNode a : node.path("allergens")) {
+            String name = a.asText("").trim().toLowerCase();
+            if (!name.isEmpty() && !allergens.contains(name)) allergens.add(name);
+        }
+        List<String> warnings = allergenWarnings(allergens, user);
+
         List<RecipeDto> matched = matchCatalog(dishName, node.path("cuisine").asText(""), user);
 
         return new SnapResult(
@@ -152,7 +161,25 @@ public class SnapService {
                 ingredients,
                 steps,
                 nutrition,
+                allergens,
+                warnings,
                 matched);
+    }
+
+    /** Which of the dish's allergens the user has flagged (substring match both ways). */
+    private List<String> allergenWarnings(List<String> allergens, User user) {
+        List<String> userAllergies = user == null ? List.of() : user.allergyList();
+        if (userAllergies.isEmpty() || allergens.isEmpty()) return List.of();
+        List<String> hits = new ArrayList<>();
+        for (String allergen : allergens) {
+            for (String ua : userAllergies) {
+                if (allergen.contains(ua) || ua.contains(allergen)) {
+                    if (!hits.contains(allergen)) hits.add(allergen);
+                    break;
+                }
+            }
+        }
+        return hits;
     }
 
     /**

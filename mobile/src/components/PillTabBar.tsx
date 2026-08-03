@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, shadowStrong } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { shadowStrong, type ThemeColors } from '../theme';
 
 const ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
   index: ['home-outline', 'home'],
@@ -22,6 +23,8 @@ const ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionico
 export default function PillTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const routes = state.routes.filter((r) => ICONS[r.name]);
   const left = routes.slice(0, 2);
@@ -84,56 +87,57 @@ export default function PillTabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    height: 62,
-    marginHorizontal: 20,
-    alignSelf: 'stretch',
-    ...shadowStrong,
-  },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' },
-  activeDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.accent,
-    marginTop: 3,
-  },
-  centerSlot: { flex: 1, alignItems: 'center' },
-  centerBadge: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: colors.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -22,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-    ...shadowStrong,
-  },
-  centerD: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
-  notifDot: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accent,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    wrap: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: 'center',
+    },
+    bar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 999,
+      paddingHorizontal: 18,
+      height: 62,
+      marginHorizontal: 20,
+      alignSelf: 'stretch',
+      ...shadowStrong,
+    },
+    tab: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' },
+    activeDot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.accent,
+      marginTop: 3,
+    },
+    centerSlot: { flex: 1, alignItems: 'center' },
+    centerBadge: {
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor: colors.brand,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: -22,
+      borderWidth: 4,
+      borderColor: colors.card,
+      ...shadowStrong,
+    },
+    centerD: { color: '#0A2A2E', fontSize: 22, fontWeight: '800' },
+    notifDot: {
+      position: 'absolute',
+      top: 2,
+      right: 2,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: colors.accent,
+      borderWidth: 2,
+      borderColor: colors.card,
+    },
+  });

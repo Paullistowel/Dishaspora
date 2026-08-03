@@ -1,4 +1,7 @@
-export const colors = {
+// Light + dark palettes share the SAME keys so any screen can switch just by
+// reading `colors` from `useTheme()` instead of the static import below. Brand /
+// accent / semantic hues stay constant across themes; only surfaces + ink flip.
+export const lightColors = {
   background: '#FFFFFF',
   surface: '#F6F8F9',
   surfaceAlt: '#EFF3F5',
@@ -17,7 +20,40 @@ export const colors = {
   danger: '#E5484D',
   success: '#2FBF71',
   star: '#FFC120',
+  /** Card background — white in light, an elevated surface in dark. */
+  card: '#FFFFFF',
 };
+
+export const darkColors: typeof lightColors = {
+  background: '#0F1720',
+  surface: '#1B2733',
+  surfaceAlt: '#243140',
+  brand: '#27EBF5',
+  brandDark: '#5BF2FA',
+  brandLight: '#123038',
+  blue: '#33CFFF',
+  blueDark: '#7FDcFF',
+  blueLight: '#12303C',
+  accent: '#FF9F43',
+  accentDark: '#FFB871',
+  accentLight: '#3A2A15',
+  ink: '#E8EEF2',
+  inkSoft: '#9FB0BC',
+  inkFaint: '#6B7B87',
+  danger: '#FF6369',
+  success: '#4ECB84',
+  star: '#FFC120',
+  card: '#1B2733',
+};
+
+export type ThemeColors = typeof lightColors;
+
+/**
+ * Static light palette. Kept as the default export for screens not yet migrated
+ * to the dynamic theme (they render light). Migrated screens read the active
+ * palette from {@link useTheme}. New/edited screens should prefer useTheme().
+ */
+export const colors = lightColors;
 
 export const radius = { sm: 12, md: 16, lg: 20, xl: 28, pill: 999 };
 

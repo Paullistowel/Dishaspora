@@ -16,12 +16,17 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenHeader from '@/components/ScreenHeader';
 import { api, ApiError } from '@/api';
 import { useAuth } from '@/context/AuthContext';
-import { colors } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import type { ThemeColors } from '@/theme';
 
 export default function ChangeEmail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -32,14 +37,14 @@ export default function ChangeEmail() {
         password,
       }),
     onSuccess: (r) =>
-      Alert.alert('Almost there', r.message, [{ text: 'OK', onPress: () => router.back() }]),
+      Alert.alert(t('account.almostThere'), r.message, [{ text: t('account.ok'), onPress: () => router.back() }]),
     onError: (e) =>
-      Alert.alert('Could not change email', e instanceof ApiError ? e.message : 'Please try again.'),
+      Alert.alert(t('account.couldNotChangeEmail'), e instanceof ApiError ? e.message : t('account.tryAgain')),
   });
 
   const submit = () => {
     if (!newEmail.trim() || !password) {
-      Alert.alert('Missing details', 'Enter your new email and current password.');
+      Alert.alert(t('account.missingDetails'), t('account.missingEmailPassword'));
       return;
     }
     change.mutate();
@@ -51,16 +56,15 @@ export default function ChangeEmail() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Change email" />
+        <ScreenHeader title={t('account.changeEmail')} />
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
-          <Text style={styles.current}>Current email: {user?.email}</Text>
+          <Text style={styles.current}>{t('account.currentEmail')}: {user?.email}</Text>
           <Text style={styles.hint}>
-            We'll send a confirmation link to your new address. Your email only changes once you
-            click it — until then, your current email stays active.
+            {t('account.changeEmailHint')}
           </Text>
           <Input
             icon="mail-outline"
-            placeholder="New email address"
+            placeholder={t('account.newEmailAddress')}
             value={newEmail}
             onChangeText={setNewEmail}
             autoCapitalize="none"
@@ -68,13 +72,13 @@ export default function ChangeEmail() {
           />
           <Input
             icon="lock-closed-outline"
-            placeholder="Current password"
+            placeholder={t('account.currentPassword')}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
           <PrimaryButton
-            title="Send confirmation"
+            title={t('account.sendConfirmation')}
             loading={change.isPending}
             onPress={submit}
             style={{ marginTop: 8 }}
@@ -85,7 +89,8 @@ export default function ChangeEmail() {
   );
 }
 
-const styles = StyleSheet.create({
-  current: { fontSize: 14, color: colors.ink, fontWeight: '600' },
-  hint: { fontSize: 13, color: colors.inkSoft, lineHeight: 20 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    current: { fontSize: 14, color: colors.ink, fontWeight: '600' },
+    hint: { fontSize: 13, color: colors.inkSoft, lineHeight: 20 },
+  });

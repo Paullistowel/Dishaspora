@@ -10,20 +10,26 @@ import SearchRow from '@/components/SearchRow';
 import SegmentChips from '@/components/SegmentChips';
 import { SkeletonGrid } from '@/components/Skeleton';
 import { useAuth } from '@/context/AuthContext';
-import { colors, spacing } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { spacing } from '@/theme';
 import type { Listing, Page } from '@/types';
 
-const SEGMENTS = ['Meals', 'Ingredients'];
 const PAGE_SIZE = 20;
 
 export default function Market() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [segment, setSegment] = useState('Meals');
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const segments = [t('market.meals'), t('market.ingredients')];
+  // Store the index (stable) rather than the localized label, so switching
+  // language doesn't break the active-segment comparison.
+  const [segIndex, setSegIndex] = useState(0);
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
 
-  const type = segment === 'Meals' ? 'FOOD' : 'INGREDIENT';
+  const type = segIndex === 0 ? 'FOOD' : 'INGREDIENT';
 
   // Paginated + virtualized: pages load on demand as the user scrolls, and the
   // FlatList only mounts visible rows (was ScrollView + .map rendering everything).
@@ -64,12 +70,12 @@ export default function Market() {
           value={q}
           onChangeText={setQ}
           onSubmit={() => setQuery(q.trim())}
-          placeholder="Search the market"
+          placeholder={t('market.search')}
         />
         <SegmentChips
-          segments={SEGMENTS}
-          value={segment}
-          onChange={setSegment}
+          segments={segments}
+          value={segments[segIndex]}
+          onChange={(v) => setSegIndex(Math.max(0, segments.indexOf(v)))}
           style={{ marginTop: 14 }}
         />
       </View>
@@ -100,19 +106,15 @@ export default function Market() {
             listings.isError ? (
               <EmptyState
                 image={3}
-                message="We couldn't load the market. Check your connection and try again."
-                actionLabel="Retry"
+                message={t('market.loadError')}
+                actionLabel={t('common.retry')}
                 onAction={() => listings.refetch()}
               />
             ) : (
               <EmptyState
                 image={3}
-                message={
-                  query
-                    ? 'Nothing in the market matches that search yet.'
-                    : 'No listings available near you yet — check back soon.'
-                }
-                actionLabel={query ? 'Clear search' : undefined}
+                message={query ? t('market.noMatch') : t('market.empty')}
+                actionLabel={query ? t('market.clearSearch') : undefined}
                 onAction={
                   query
                     ? () => {

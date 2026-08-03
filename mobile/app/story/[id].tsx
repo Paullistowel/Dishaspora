@@ -12,7 +12,9 @@ import { ErrorView, LoadingView } from '@/components/StatusViews';
 import TwoToneTitle from '@/components/TwoToneTitle';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
-import { colors } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import type { ThemeColors } from '@/theme';
 import type { Page, Recipe, Story } from '@/types';
 
 /**
@@ -25,6 +27,9 @@ export default function StoryReader() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const byRecipe = !!recipeId && recipeId !== '0';
 
   const stories = useQuery({
@@ -48,15 +53,15 @@ export default function StoryReader() {
   let viewRecipeId: number | null;
 
   if (byRecipe) {
-    if (!recipe.data) return <ErrorView message="Story not found." />;
-    title = `The story of ${recipe.data.title}`;
-    body = recipe.data.story ?? 'No story recorded for this dish yet.';
+    if (!recipe.data) return <ErrorView message={t('intro.storyNotFound')} />;
+    title = `${t('intro.storyOf')} ${recipe.data.title}`;
+    body = recipe.data.story ?? t('intro.noStory');
     imageUrl = recipe.data.storyImageUrl ?? recipe.data.imageUrl;
     meta = `${recipe.data.cuisine}${recipe.data.vendorName ? ` · ${recipe.data.vendorName}` : ''}`;
     viewRecipeId = recipe.data.id;
   } else {
     const story = (stories.data?.content ?? []).find((s) => s.id === Number(id));
-    if (!story) return <ErrorView message="Story not found." />;
+    if (!story) return <ErrorView message={t('intro.storyNotFound')} />;
     title = story.title;
     body = story.body;
     imageUrl = story.imageUrl;
@@ -84,7 +89,7 @@ export default function StoryReader() {
       {viewRecipeId ? (
         <View style={[styles.cta, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <PrimaryButton
-            title="View recipe"
+            title={t('intro.viewRecipe')}
             onPress={() =>
               router.push({ pathname: '/recipe/[id]', params: { id: String(viewRecipeId) } })
             }
@@ -95,17 +100,18 @@ export default function StoryReader() {
   );
 }
 
-const styles = StyleSheet.create({
-  hero: { width: '100%', height: 340, backgroundColor: colors.surfaceAlt },
-  body: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -24,
-    padding: 24,
-  },
-  meta: { fontSize: 12.5, color: colors.brandDark, fontWeight: '600', marginTop: 6 },
-  narrative: { fontSize: 15, color: colors.inkSoft, lineHeight: 24, marginTop: 16 },
-  back: { position: 'absolute', left: 16 },
-  cta: { position: 'absolute', left: 20, right: 20, bottom: 0 },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    hero: { width: '100%', height: 340, backgroundColor: colors.surfaceAlt },
+    body: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      marginTop: -24,
+      padding: 24,
+    },
+    meta: { fontSize: 12.5, color: colors.brandDark, fontWeight: '600', marginTop: 6 },
+    narrative: { fontSize: 15, color: colors.inkSoft, lineHeight: 24, marginTop: 16 },
+    back: { position: 'absolute', left: 16 },
+    cta: { position: 'absolute', left: 20, right: 20, bottom: 0 },
+  });

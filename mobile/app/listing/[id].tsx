@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
@@ -16,8 +16,10 @@ import { Skeleton } from '@/components/Skeleton';
 import { ErrorView } from '@/components/StatusViews';
 import ScreenHeader from '@/components/ScreenHeader';
 import { useCart } from '@/context/CartContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { formatMoney } from '@/money';
-import { colors, radius, shadow, shadowStrong } from '@/theme';
+import { radius, shadow, shadowStrong, type ThemeColors } from '@/theme';
 import type { Listing, Recipe, Review, Vendor } from '@/types';
 
 export default function ListingDetail() {
@@ -25,6 +27,9 @@ export default function ListingDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const cart = useCart();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [qty, setQty] = useState(1);
   const [confirm, setConfirm] = useState(false);
 
@@ -53,47 +58,26 @@ export default function ListingDetail() {
 
   const addToCart = (): boolean => {
     if (!l) return false;
-    const res = cart.add(l, qty);
-    if (res === 'different-vendor') {
-      // Different vendor — ask before replacing (single-vendor cart rule).
-      return false;
-    }
+    // Carts hold items from any number of vendors; each vendor is checked out and
+    // paid separately, so adding never conflicts with what's already in the cart.
+    cart.add(l, qty);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     return true;
   };
 
   const onAddToCart = () => {
     if (addToCart()) setConfirm(true);
-    else replacePrompt();
   };
   const onBuyNow = () => {
     if (addToCart()) router.push('/cart');
-    else replacePrompt();
-  };
-  const replacePrompt = () => {
-    Alert.alert(
-      'Start a new cart?',
-      `Your cart has items from ${cart.vendorName}. Only one vendor per order — replace it with ${l?.vendorName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Replace',
-          style: 'destructive',
-          onPress: () => {
-            if (l) cart.replaceWith(l, qty);
-            setConfirm(true);
-          },
-        },
-      ]
-    );
   };
 
   if (listing.isError || (!listing.isLoading && !l)) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title="Product" />
+        <ScreenHeader title={t('vendor.product')} />
         <ErrorView
-          message="We couldn't load this item. Check your connection and try again."
+          message={t('vendor.loadItemError')}
           onRetry={() => listing.refetch()}
         />
       </View>
@@ -128,7 +112,7 @@ export default function ListingDetail() {
             <Ionicons name="cart-outline" size={22} color={colors.ink} />
             {cart.count > 0 ? <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cart.count}</Text></View> : null}
           </TouchableOpacity>
-          {!l.available ? <View style={styles.soldOut}><Text style={styles.soldOutText}>Out of stock</Text></View> : null}
+          {!l.available ? <View style={styles.soldOut}><Text style={styles.soldOutText}>{t('vendor.outOfStock')}</Text></View> : null}
         </View>
 
         <Animated.View entering={FadeInDown.duration(350)} style={styles.body}>
@@ -146,7 +130,7 @@ export default function ListingDetail() {
               {vendor.data ? (
                 <View style={styles.ratingRow}>
                   <RatingStars rating={vendor.data.rating} size={12} />
-                  <Text style={styles.ratingText}>{vendor.data.rating.toFixed(1)} · {vendor.data.reviewCount} reviews</Text>
+                  <Text style={styles.ratingText}>{vendor.data.rating.toFixed(1)} · {vendor.data.reviewCount} {t('vendor.reviews')}</Text>
                 </View>
               ) : null}
             </View>
@@ -155,7 +139,7 @@ export default function ListingDetail() {
 
           {l.description ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.sectionTitle}>{t('vendor.description')}</Text>
               <Text style={styles.desc}>{l.description}</Text>
             </View>
           ) : null}
@@ -163,14 +147,14 @@ export default function ListingDetail() {
           {/* Nutrition for meals (from the linked recipe) */}
           {recipe.data ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Nutrition · per serving</Text>
+              <Text style={styles.sectionTitle}>{t('vendor.nutritionPerServing')}</Text>
               <View style={styles.macroRow}>
-                <Macro label="Calories" value={recipe.data.calories} unit="kcal" />
-                <Macro label="Prep" value={recipe.data.prepMinutes + recipe.data.cookMinutes} unit="min" />
-                <Macro label="Serves" value={recipe.data.servings} unit="" />
+                <Macro label={t('vendor.calories')} value={recipe.data.calories} unit="kcal" />
+                <Macro label={t('vendor.prep')} value={recipe.data.prepMinutes + recipe.data.cookMinutes} unit="min" />
+                <Macro label={t('vendor.serves')} value={recipe.data.servings} unit="" />
               </View>
               <TouchableOpacity onPress={() => router.push({ pathname: '/recipe/[id]', params: { id: String(recipe.data!.id) } })}>
-                <Text style={styles.recipeLink}>View full recipe →</Text>
+                <Text style={styles.recipeLink}>{t('vendor.viewFullRecipe')} →</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -178,7 +162,7 @@ export default function ListingDetail() {
           {/* Reviews */}
           {(reviews.data ?? []).length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ratings & reviews</Text>
+              <Text style={styles.sectionTitle}>{t('vendor.ratingsAndReviews')}</Text>
               {(reviews.data ?? []).slice(0, 3).map((rv) => (
                 <View key={rv.id} style={styles.reviewRow}>
                   <Avatar url={rv.userAvatarUrl} name={rv.userName} size={34} />
@@ -205,7 +189,7 @@ export default function ListingDetail() {
         </View>
         <TouchableOpacity style={[styles.addBtn, !l.available && { opacity: 0.5 }]} disabled={!l.available} onPress={onAddToCart}>
           <Ionicons name="cart" size={18} color="#FFF" />
-          <Text style={styles.addBtnText}>Add · {formatMoney(l.amountMinor * qty, l.currency)}</Text>
+          <Text style={styles.addBtnText}>{t('vendor.add')} · {formatMoney(l.amountMinor * qty, l.currency)}</Text>
         </TouchableOpacity>
       </View>
 
@@ -214,13 +198,13 @@ export default function ListingDetail() {
         <View style={styles.modalBackdrop}>
           <Animated.View entering={FadeInUp.springify().damping(15)} style={styles.modalCard}>
             <View style={styles.modalCheck}><Ionicons name="checkmark" size={30} color="#FFF" /></View>
-            <Text style={styles.modalTitle}>Added to cart</Text>
+            <Text style={styles.modalTitle}>{t('vendor.addedToCart')}</Text>
             <Text style={styles.modalSub}>{qty} × {l.title}</Text>
             <TouchableOpacity style={styles.modalPrimary} onPress={() => { setConfirm(false); router.push('/cart'); }}>
-              <Text style={styles.modalPrimaryText}>View cart ({cart.count})</Text>
+              <Text style={styles.modalPrimaryText}>{t('vendor.viewCart')} ({cart.count})</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalGhost} onPress={() => { setConfirm(false); router.back(); }}>
-              <Text style={styles.modalGhostText}>Continue shopping</Text>
+              <Text style={styles.modalGhostText}>{t('vendor.continueShopping')}</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -230,6 +214,8 @@ export default function ListingDetail() {
 }
 
 function Macro({ label, value, unit }: { label: string; value: number; unit: string }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.macro}>
       <Text style={styles.macroV}>{value}{unit ? <Text style={styles.macroU}> {unit}</Text> : null}</Text>
@@ -238,7 +224,8 @@ function Macro({ label, value, unit }: { label: string; value: number; unit: str
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   hero: { width: '100%', height: 320, backgroundColor: colors.surfaceAlt },
   backBtn: { position: 'absolute', left: 16, width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center', ...shadow },
   cartBtn: { position: 'absolute', right: 16, width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center', ...shadow },
@@ -267,14 +254,14 @@ const styles = StyleSheet.create({
   reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   reviewName: { fontSize: 13.5, fontWeight: '700', color: colors.ink },
   reviewComment: { fontSize: 13, color: colors.inkSoft, marginTop: 2, lineHeight: 19 },
-  buyBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, backgroundColor: '#FFF', borderTopWidth: 1, borderTopColor: colors.surfaceAlt, ...shadowStrong },
+  buyBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.surfaceAlt, ...shadowStrong },
   qtyStepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 999 },
   qtyBtn: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
   qtyVal: { fontSize: 16, fontWeight: '800', color: colors.ink, minWidth: 22, textAlign: 'center' },
   addBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52, borderRadius: 999, backgroundColor: colors.accent },
   addBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  modalCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 26, alignItems: 'center', alignSelf: 'stretch' },
+  modalCard: { backgroundColor: colors.card, borderRadius: 24, padding: 26, alignItems: 'center', alignSelf: 'stretch' },
   modalCheck: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 19, fontWeight: '800', color: colors.ink, marginTop: 14 },
   modalSub: { fontSize: 13.5, color: colors.inkSoft, marginTop: 4, textAlign: 'center' },

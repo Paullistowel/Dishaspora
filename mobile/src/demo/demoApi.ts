@@ -441,6 +441,15 @@ export async function demoResolve<T>(
     state.user = { ...state.user, ...body };
     return R(state.user);
   }
+  if (p === '/users/me/preferences' && m === 'PUT') {
+    state.user = {
+      ...state.user,
+      allergies: body?.allergies ?? state.user.allergies,
+      dietaryPreferences: body?.dietaryPreferences ?? state.user.dietaryPreferences,
+      fitnessGoal: body?.fitnessGoal ?? state.user.fitnessGoal,
+    };
+    return R(state.user);
+  }
   if (m === 'POST' && p === '/users/me/change-email') {
     state.user = { ...state.user, pendingEmail: body?.newEmail ?? null };
     return R({ message: 'We sent a confirmation link to ' + (body?.newEmail ?? '') + '.' });
@@ -859,6 +868,25 @@ export async function demoResolve<T>(
   if (m === 'GET' && p === '/search/smart') {
     const filters = parseSmart(str(params?.q) ?? '');
     return R({ filters, recipes: smartRecipes(filters) });
+  }
+  if (m === 'GET' && p === '/assistant/recommendations') {
+    const allergies = (state.user.allergies ?? '')
+      .split(',')
+      .map((a) => a.trim().toLowerCase())
+      .filter(Boolean);
+    const safe = state.recipes.filter(
+      (r) => !r.ingredients?.some((ing) => allergies.some((a) => ing.name.toLowerCase().includes(a)))
+    );
+    const bySlot = (slot: string) => safe.filter((r) => r.mealType === slot).slice(0, 4);
+    const goal = state.user.fitnessGoal;
+    return R({
+      note: goal
+        ? `Tuned to your goal to ${goal.replace('_', ' ')}, avoiding your flagged allergens.`
+        : 'Personalized picks from our kitchen for you today.',
+      breakfast: bySlot('BREAKFAST'),
+      lunch: bySlot('LUNCH'),
+      dinner: bySlot('DINNER'),
+    });
   }
 
   // ---- chat ----

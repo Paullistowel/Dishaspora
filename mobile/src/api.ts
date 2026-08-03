@@ -119,9 +119,11 @@ async function request<T>(
   }
 
   let res: Response;
-  // Abort requests that hang so the UI never waits forever (uploads get longer).
+  // Abort requests that hang so the UI never waits forever. Snap uploads run an
+  // AI vision model server-side (can take 30-60s on larger models), so give
+  // multipart uploads a much longer budget than regular JSON calls.
   const controller = new AbortController();
-  const timeoutMs = body instanceof FormData ? 30000 : 15000;
+  const timeoutMs = body instanceof FormData ? 90000 : 15000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(`${API_URL}/api${path}${qs(params)}`, {

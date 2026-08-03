@@ -2,6 +2,7 @@ package com.dishaspora.ai.controller;
 
 import com.dishaspora.ai.dto.AiDtos.AssistantChatRequest;
 import com.dishaspora.ai.dto.AiDtos.AssistantReply;
+import com.dishaspora.ai.dto.AiDtos.MealSuggestions;
 import com.dishaspora.ai.dto.AiDtos.SmartSearchResponse;
 import com.dishaspora.ai.service.AssistantService;
 import com.dishaspora.auth.entity.User;
@@ -29,5 +30,11 @@ public class AssistantController {
     public SmartSearchResponse smartSearch(@RequestParam(required = false, defaultValue = "") String q,
                                            @AuthenticationPrincipal User user) {
         return assistantService.smartSearch(q, user);
+    }
+
+    /** Personalized breakfast/lunch/dinner suggestions (free — no premium gate). */
+    @GetMapping("/assistant/recommendations")
+    public MealSuggestions recommendations(@AuthenticationPrincipal User user) {
+        return assistantService.recommendMeals(user);
     }
 }

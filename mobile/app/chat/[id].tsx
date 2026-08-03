@@ -18,7 +18,9 @@ import { api } from '@/api';
 import { useChatThreads } from '@/hooks/useChat';
 import ScreenHeader from '@/components/ScreenHeader';
 import { useToast } from '@/context/ToastContext';
-import { colors } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { type ThemeColors } from '@/theme';
 import type { ChatMessage } from '@/types';
 
 export default function ChatThreadScreen() {
@@ -27,6 +29,9 @@ export default function ChatThreadScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<ScrollView>(null);
@@ -82,7 +87,7 @@ export default function ChatThreadScreen() {
     onError: (_e, body) => {
       // Restore the unsent text so the user doesn't lose what they typed.
       setInput((cur) => (cur.length ? cur : body));
-      toast.error("Message didn't send. Check your connection and try again.");
+      toast.error(t('chat.sendError'));
     },
   });
 
@@ -99,7 +104,7 @@ export default function ChatThreadScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-        <ScreenHeader title={thread?.vendorName ?? 'Chat'} />
+        <ScreenHeader title={thread?.vendorName ?? t('chat.title')} />
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={{ padding: 20, gap: 10 }}
@@ -123,7 +128,7 @@ export default function ChatThreadScreen() {
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Type a message..."
+            placeholder={t('chat.typeMessage')}
             placeholderTextColor={colors.inkFaint}
             onSubmitEditing={submit}
             returnKeyType="send"
@@ -141,8 +146,9 @@ export default function ChatThreadScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  mine: {
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    mine: {
     alignSelf: 'flex-end',
     maxWidth: '80%',
     backgroundColor: colors.accentLight,

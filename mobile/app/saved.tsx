@@ -9,12 +9,15 @@ import EmptyState from '@/components/EmptyState';
 import RecipeCard from '@/components/RecipeCard';
 import ScreenHeader from '@/components/ScreenHeader';
 import { SkeletonGrid } from '@/components/Skeleton';
-import { colors } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import type { Recipe } from '@/types';
 
 export default function Saved() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = useI18n();
   const saved = useQuery({
     queryKey: ['saved'],
     queryFn: () => api.get<Recipe[]>('/users/me/saved'),
@@ -22,7 +25,7 @@ export default function Saved() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-      <ScreenHeader title="My favorites" />
+      <ScreenHeader title={t('nutrition.savedTitle')} />
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
         refreshControl={
@@ -38,15 +41,15 @@ export default function Saved() {
         ) : saved.isError ? (
           <EmptyState
             image={2}
-            message="We couldn't load your favorites. Check your connection and try again."
-            actionLabel="Retry"
+            message={t('nutrition.savedLoadError')}
+            actionLabel={t('nutrition.retry')}
             onAction={() => saved.refetch()}
           />
         ) : (saved.data ?? []).length === 0 ? (
           <EmptyState
             image={2}
-            message="You haven't saved any recipes yet. Tap the heart on a recipe to keep it here."
-            actionLabel="Find recipes"
+            message={t('nutrition.savedEmpty')}
+            actionLabel={t('nutrition.findRecipes')}
             onAction={() => router.push('/(tabs)/search')}
           />
         ) : (

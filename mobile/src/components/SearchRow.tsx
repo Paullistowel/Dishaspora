@@ -11,7 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCart } from '../context/CartContext';
-import { colors, shadow } from '../theme';
+import { shadow, type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { useI18n } from '../context/I18nContext';
 
 /**
  * Rounded-full surface search input + trailing circular orange cart button with badge.
@@ -22,7 +24,7 @@ export default function SearchRow({
   onChangeText,
   onSubmit,
   onPressInput,
-  placeholder = 'Search Dishaspora',
+  placeholder,
   autoFocus,
   hideCart,
   style,
@@ -38,13 +40,17 @@ export default function SearchRow({
 }) {
   const router = useRouter();
   const { count } = useCart();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
+  const placeholderText = placeholder ?? t('common.searchDishaspora');
 
   return (
     <View style={[styles.row, style]}>
       {onPressInput ? (
         <Pressable style={styles.input} onPress={onPressInput}>
           <Ionicons name="search" size={18} color={colors.inkFaint} />
-          <Text style={styles.placeholder}>{placeholder}</Text>
+          <Text style={styles.placeholder}>{placeholderText}</Text>
         </Pressable>
       ) : (
         <View style={styles.input}>
@@ -54,7 +60,7 @@ export default function SearchRow({
             value={value}
             onChangeText={onChangeText}
             onSubmitEditing={onSubmit}
-            placeholder={placeholder}
+            placeholder={placeholderText}
             placeholderTextColor={colors.inkFaint}
             returnKeyType="search"
             autoFocus={autoFocus}
@@ -79,7 +85,8 @@ export default function SearchRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: {
     flex: 1,

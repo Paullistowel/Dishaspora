@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -33,32 +33,38 @@ import StoryRing from '@/components/StoryRing';
 import VerifyEmailBanner from '@/components/VerifyEmailBanner';
 import { IMG } from '@/config';
 import { useAuth } from '@/context/AuthContext';
-import { colors, shadow, shadowStrong } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadow, shadowStrong } from '@/theme';
+import type { ThemeColors } from '@/theme';
 import type { Page, Recipe, Story, Vendor } from '@/types';
 
 function DishOfTheDay({ recipes }: { recipes: Recipe[] }) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [page, setPage] = useState(0);
   const featured = recipes.slice(0, 5);
 
   // slow 3D float loop on the hero (UI thread)
-  const t = useSharedValue(0);
+  const heroT = useSharedValue(0);
   useEffect(() => {
-    t.value = withRepeat(
+    heroT.value = withRepeat(
       withTiming(1, { duration: 3600, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
-  }, [t]);
+  }, [heroT]);
   const float = useAnimatedStyle(() => ({
     transform: [
       { perspective: 900 },
-      { rotateX: `${(t.value - 0.5) * 3}deg` },
-      { rotateY: `${(0.5 - t.value) * 3}deg` },
+      { rotateX: `${(heroT.value - 0.5) * 3}deg` },
+      { rotateY: `${(0.5 - heroT.value) * 3}deg` },
     ],
   }));
   const photoFloat = useAnimatedStyle(() => ({
-    transform: [{ translateY: (t.value - 0.5) * 8 }],
+    transform: [{ translateY: (heroT.value - 0.5) * 8 }],
   }));
 
   if (featured.length === 0) return null;
@@ -80,7 +86,7 @@ function DishOfTheDay({ recipes }: { recipes: Recipe[] }) {
         >
           <View style={styles.heroLeft}>
             <View style={styles.heroPill}>
-              <Text style={styles.heroPillText}>DISH OF THE DAY</Text>
+              <Text style={styles.heroPillText}>{t('home.dishOfTheDay')}</Text>
             </View>
             <View style={styles.heroTitleRow}>
               <Text style={styles.heroTitle} numberOfLines={2}>
@@ -94,7 +100,7 @@ function DishOfTheDay({ recipes }: { recipes: Recipe[] }) {
               {dish.description}
             </Text>
             <View style={styles.heroBtn}>
-              <Text style={styles.heroBtnText}>View Recipe ›</Text>
+              <Text style={styles.heroBtnText}>{t('home.viewRecipe')} ›</Text>
             </View>
             <View style={styles.dots}>
               {featured.map((_, i) => (
@@ -117,6 +123,9 @@ export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
 
   const trending = useQuery({
@@ -163,7 +172,7 @@ export default function Home() {
           </View>
           <View style={styles.greetingRow}>
             <Text style={styles.greeting}>
-              Akwaaba, {user?.name?.split(' ')[0] ?? 'chef'}
+              {t('home.greeting')}, {user?.name?.split(' ')[0] ?? t('home.chef')}
             </Text>
             <Flag country={user?.country ?? 'GH'} size={13} />
           </View>
@@ -187,9 +196,9 @@ export default function Home() {
         <View style={styles.section}>
           <View style={styles.loadError} accessibilityRole="alert">
             <Ionicons name="cloud-offline-outline" size={18} color={colors.inkSoft} />
-            <Text style={styles.loadErrorText}>We couldn't load your feed.</Text>
+            <Text style={styles.loadErrorText}>{t('home.feedError')}</Text>
             <TouchableOpacity onPress={onRefresh} hitSlop={8} accessibilityRole="button">
-              <Text style={styles.loadErrorRetry}>Retry</Text>
+              <Text style={styles.loadErrorRetry}>{t('home.retry')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -203,9 +212,9 @@ export default function Home() {
               <Ionicons name="camera" size={22} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.snapTitle}>Snap & Cook</Text>
+              <Text style={styles.snapTitle}>{t('home.snapTitle')}</Text>
               <Text style={styles.snapSub} numberOfLines={1}>
-                Photograph any dish — get the recipe & nutrition.
+                {t('home.snapSub')}
               </Text>
             </View>
             <Ionicons name="arrow-forward-circle" size={26} color={colors.accent} />
@@ -218,15 +227,15 @@ export default function Home() {
         <PressableScale tilt onPress={() => router.push('/planner')} style={{ flex: 1 }}>
           <View style={[styles.quickCard, { backgroundColor: colors.brandLight }]}>
             <Ionicons name="calendar-outline" size={22} color={colors.brandDark} />
-            <Text style={styles.quickTitle}>Meal plan</Text>
-            <Text style={styles.quickSub}>Plan your week</Text>
+            <Text style={styles.quickTitle}>{t('home.mealPlan')}</Text>
+            <Text style={styles.quickSub}>{t('home.mealPlanSub')}</Text>
           </View>
         </PressableScale>
         <PressableScale tilt onPress={() => router.push('/tracker')} style={{ flex: 1 }}>
           <View style={[styles.quickCard, { backgroundColor: colors.blueLight }]}>
             <Ionicons name="flame-outline" size={22} color={colors.blueDark} />
-            <Text style={styles.quickTitle}>Track</Text>
-            <Text style={styles.quickSub}>Calories & water</Text>
+            <Text style={styles.quickTitle}>{t('home.track')}</Text>
+            <Text style={styles.quickSub}>{t('home.trackSub')}</Text>
           </View>
         </PressableScale>
       </Animated.View>
@@ -243,7 +252,7 @@ export default function Home() {
       {/* Stories strip */}
       <Animated.View entering={FadeInDown.delay(180).duration(350)}>
         <View style={styles.sectionHeaderPad}>
-          <SectionHeader title="Food Stories" />
+          <SectionHeader title={t('home.foodStories')} />
         </View>
         {stories.isLoading ? (
           <View style={{ paddingHorizontal: 20 }}>
@@ -271,7 +280,7 @@ export default function Home() {
       {/* Trending recipes 2-col */}
       <Animated.View entering={FadeInDown.delay(240).duration(350)} style={styles.sectionHeaderPad}>
         <SectionHeader
-          title="Trending recipes"
+          title={t('home.trendingRecipes')}
           onAction={() => router.push('/(tabs)/search')}
         />
         {trending.isLoading ? (
@@ -294,7 +303,7 @@ export default function Home() {
       {/* Vendor spotlights */}
       <Animated.View entering={FadeInDown.delay(300).duration(350)}>
         <View style={styles.sectionHeaderPad}>
-          <SectionHeader title="Vendor spotlights" onAction={() => router.push('/(tabs)/market')} />
+          <SectionHeader title={t('home.vendorSpotlights')} onAction={() => router.push('/(tabs)/market')} />
         </View>
         {vendors.isLoading ? (
           <View style={{ paddingHorizontal: 20 }}>
@@ -352,9 +361,9 @@ export default function Home() {
                 <Text style={styles.premiumD}>D</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.premiumTitle}>Go Premium</Text>
+                <Text style={styles.premiumTitle}>{t('home.goPremium')}</Text>
                 <Text style={styles.premiumSub}>
-                  Ask Dishaspora AI, video cook-alongs & vendor chat.
+                  {t('home.goPremiumSub')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.brandDark} />
@@ -366,7 +375,8 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -451,7 +461,7 @@ const styles = StyleSheet.create({
   vendorRow: { paddingHorizontal: 20, gap: 14, paddingBottom: 8 },
   vendorCardWrap: { width: 250 },
   vendorCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     overflow: 'hidden',
     ...shadow,

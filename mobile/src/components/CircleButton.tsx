@@ -1,14 +1,15 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, shadowStrong } from '../theme';
+import { shadowStrong, type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 /** Floating white circular button with shadow (back arrow / heart on heroes). */
 export default function CircleButton({
   icon,
   onPress,
-  color = colors.ink,
-  bg = '#FFFFFF',
+  color,
+  bg,
   size = 42,
   style,
   accessibilityLabel,
@@ -21,6 +22,10 @@ export default function CircleButton({
   style?: ViewStyle;
   accessibilityLabel?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
+  const iconColor = color ?? colors.ink;
+  const background = bg ?? colors.card;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -29,16 +34,17 @@ export default function CircleButton({
       accessibilityLabel={accessibilityLabel ?? icon.replace(/-outline$/, '').replace(/-/g, ' ')}
       style={[
         styles.btn,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: background },
         style,
       ]}
     >
-      <Ionicons name={icon} size={size * 0.45} color={color} />
+      <Ionicons name={icon} size={size * 0.45} color={iconColor} />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   btn: {
     alignItems: 'center',
     justifyContent: 'center',

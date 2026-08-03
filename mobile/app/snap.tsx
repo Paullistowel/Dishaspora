@@ -234,6 +234,30 @@ export default function Snap() {
               ))}
             </View>
           </View>
+          {(dish.allergenWarnings ?? []).length > 0 ? (
+            <View style={styles.allergyWarn} accessibilityRole="alert">
+              <Ionicons name="warning" size={18} color={colors.danger} />
+              <Text style={styles.allergyWarnText}>
+                Heads up — this dish may contain allergens you flagged:{' '}
+                <Text style={{ fontWeight: '800' }}>{(dish.allergenWarnings ?? []).join(', ')}</Text>.
+              </Text>
+            </View>
+          ) : null}
+          {(dish.allergens ?? []).length > 0 ? (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Allergens</Text>
+              <View style={styles.allergenChips}>
+                {(dish.allergens ?? []).map((a) => {
+                  const flagged = (dish.allergenWarnings ?? []).includes(a);
+                  return (
+                    <View key={a} style={[styles.allergenChip, flagged && styles.allergenChipFlagged]}>
+                      <Text style={[styles.allergenChipText, flagged && { color: '#FFFFFF' }]}>{a}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
           {dish.ingredients.length > 0 ? (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Ingredients</Text>
@@ -531,6 +555,26 @@ const styles = StyleSheet.create({
 
   // dish
   dishPhoto: { width: '100%', height: 210, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
+  allergyWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FDECEC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#F6C9C9',
+  },
+  allergyWarnText: { flex: 1, fontSize: 13, color: colors.ink, lineHeight: 18 },
+  allergenChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  allergenChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceAlt,
+  },
+  allergenChipFlagged: { backgroundColor: colors.danger },
+  allergenChipText: { fontSize: 12.5, fontWeight: '700', color: colors.inkSoft, textTransform: 'capitalize' },
   dishName: { fontSize: 24, fontWeight: '800', color: colors.ink },
   dishCuisine: { fontSize: 13, color: colors.accentDark, fontWeight: '600', marginTop: 4 },
   dishDesc: { fontSize: 14, color: colors.inkSoft, lineHeight: 21, marginTop: 8 },

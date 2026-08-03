@@ -7,7 +7,9 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { IMG } from '../config';
-import { colors, shadow } from '../theme';
+import { shadow, type ThemeColors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { useI18n } from '../context/I18nContext';
 import type { Recipe } from '../types';
 import Avatar from './Avatar';
 
@@ -26,6 +28,9 @@ function RecipeCard({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const totalMin = recipe.prepMinutes + recipe.cookMinutes;
   const open = () => {
     // Warm the detail query so the recipe screen paints instantly on arrival.
@@ -41,8 +46,8 @@ function RecipeCard({
       style={[styles.card, style]}
       onPress={open}
       tilt
-      accessibilityLabel={`Recipe: ${recipe.title}, ${totalMin} minutes`}
-      accessibilityHint="Opens the recipe"
+      accessibilityLabel={`${t('common.recipeLabel')}: ${recipe.title}, ${totalMin} ${t('common.minutes')}`}
+      accessibilityHint={t('common.opensRecipe')}
     >
       <View style={styles.imageWrap}>
         <Image
@@ -74,9 +79,9 @@ function RecipeCard({
               {recipe.rating ? recipe.rating.toFixed(1) : '—'}
             </Text>
             <Ionicons name="time-outline" size={11} color={colors.inkFaint} style={{ marginLeft: 6 }} />
-            <Text style={styles.metaText}>{totalMin} min</Text>
+            <Text style={styles.metaText}>{totalMin} {t('common.minShort')}</Text>
             <Ionicons name="flame-outline" size={11} color={colors.accentDark} style={{ marginLeft: 6 }} />
-            <Text style={styles.metaText}>{recipe.calories} kcal</Text>
+            <Text style={styles.metaText}>{recipe.calories} {t('common.kcal')}</Text>
           </View>
         </View>
       ) : null}
@@ -88,7 +93,8 @@ function RecipeCard({
 // recipe/style/showMeta props are unchanged.
 export default React.memo(RecipeCard);
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   card: { flex: 1 },
   imageWrap: {
     borderRadius: 20,

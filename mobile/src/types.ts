@@ -17,6 +17,10 @@ export interface User {
   vendorId: number | null;
   emailVerified: boolean;
   pendingEmail: string | null;
+  /** Dietary preferences (Phase: AI personalization). Comma-separated. */
+  allergies: string;
+  dietaryPreferences: string;
+  fitnessGoal: string;
 }
 
 export type VendorType = 'FOOD' | 'INGREDIENT' | 'BOTH';
@@ -359,7 +363,25 @@ export interface SnapResult {
   ingredients: SnapIngredient[];
   steps: SnapStep[];
   nutrition: SnapNutrition;
+  /** Common allergens present in the dish. */
+  allergens: string[];
+  /** Subset of `allergens` the signed-in user has flagged (show a warning). */
+  allergenWarnings: string[];
   matchedRecipes: Recipe[];
+}
+
+// Personalized meal suggestions (AI personalization).
+export interface MealSuggestions {
+  note: string;
+  breakfast: Recipe[];
+  lunch: Recipe[];
+  dinner: Recipe[];
+}
+
+export interface UpdatePreferencesRequest {
+  allergies?: string;
+  dietaryPreferences?: string;
+  fitnessGoal?: string;
 }
 
 export interface DetectedIngredient {

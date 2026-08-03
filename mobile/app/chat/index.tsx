@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -15,27 +15,32 @@ import PressableScale from '@/components/PressableScale';
 import ScreenHeader from '@/components/ScreenHeader';
 import { Skeleton } from '@/components/Skeleton';
 import { useChatThreads } from '@/hooks/useChat';
-import { colors, shadow } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadow, type ThemeColors } from '@/theme';
 
-function timeAgo(iso: string | null): string {
+function timeAgo(iso: string | null, t: (key: string) => string): string {
   if (!iso) return '';
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return t('chat.timeNow');
+  if (mins < 60) return `${mins}${t('chat.minuteSuffix')}`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) return `${hours}${t('chat.hourSuffix')}`;
+  return `${Math.floor(hours / 24)}${t('chat.daySuffix')}`;
 }
 
 export default function ChatThreads() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const threads = useChatThreads();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-      <ScreenHeader title="Messages" />
+      <ScreenHeader title={t('chat.messages')} />
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 60, gap: 12 }}
         refreshControl={
@@ -54,15 +59,15 @@ export default function ChatThreads() {
         ) : threads.isError ? (
           <EmptyState
             image={3}
-            message="We couldn't load your messages. Check your connection and try again."
-            actionLabel="Retry"
+            message={t('chat.loadError')}
+            actionLabel={t('chat.retry')}
             onAction={() => threads.refetch()}
           />
         ) : (threads.data ?? []).length === 0 ? (
           <EmptyState
             image={3}
-            message="No conversations yet. Message a vendor from their storefront or a recipe page."
-            actionLabel="Explore the market"
+            message={t('chat.emptyMessage')}
+            actionLabel={t('chat.exploreMarket')}
             onAction={() => router.push('/(tabs)/market')}
           />
         ) : (
@@ -79,11 +84,11 @@ export default function ChatThreads() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.threadName}>{thread.vendorName}</Text>
                     <Text style={styles.threadLast} numberOfLines={1}>
-                      {thread.lastMessage ?? 'Start the conversation'}
+                      {thread.lastMessage ?? t('chat.startConversation')}
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 5 }}>
-                    <Text style={styles.threadTime}>{timeAgo(thread.lastAt)}</Text>
+                    <Text style={styles.threadTime}>{timeAgo(thread.lastAt, t)}</Text>
                     {thread.unread > 0 ? (
                       <View style={styles.unreadBadge}>
                         <Text style={styles.unreadText}>{thread.unread}</Text>
@@ -100,27 +105,28 @@ export default function ChatThreads() {
   );
 }
 
-const styles = StyleSheet.create({
-  threadCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 12,
-    ...shadow,
-  },
-  threadName: { fontSize: 14.5, fontWeight: '700', color: colors.ink },
-  threadLast: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
-  threadTime: { fontSize: 11, color: colors.inkFaint },
-  unreadBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  unreadText: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '800' },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    threadCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 12,
+      ...shadow,
+    },
+    threadName: { fontSize: 14.5, fontWeight: '700', color: colors.ink },
+    threadLast: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
+    threadTime: { fontSize: 11, color: colors.inkFaint },
+    unreadBadge: {
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 5,
+    },
+    unreadText: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '800' },
+  });

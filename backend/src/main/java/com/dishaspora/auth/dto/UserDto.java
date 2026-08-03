@@ -4,7 +4,8 @@ import com.dishaspora.auth.entity.User;
 
 public record UserDto(Long id, String name, String email, String role, String country,
                       String avatarUrl, boolean premium, String premiumUntil, Long vendorId,
-                      boolean emailVerified, String pendingEmail) {
+                      boolean emailVerified, String pendingEmail,
+                      String allergies, String dietaryPreferences, String fitnessGoal) {
 
     public static UserDto from(User user) {
         return new UserDto(
@@ -18,6 +19,9 @@ public record UserDto(Long id, String name, String email, String role, String co
                 user.getPremiumUntil() == null ? null : user.getPremiumUntil().toString(),
                 user.getVendorId(),
                 user.isEmailVerified(),
-                user.getPendingEmail());
+                user.getPendingEmail(),
+                user.getAllergies(),
+                user.getDietaryPreferences(),
+                user.getFitnessGoal());
     }
 }

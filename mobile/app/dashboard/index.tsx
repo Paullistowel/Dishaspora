@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   RefreshControl,
@@ -22,10 +22,11 @@ import { Skeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { IMG } from '@/config';
 import { formatMoney } from '@/money';
-import { colors, shadow } from '@/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
+import { shadow, type ThemeColors } from '@/theme';
 import type { Listing, Order, OrderStatus, Page, Recipe, Vendor } from '@/types';
 
-const SEGMENTS = ['Recipes', 'Listings', 'Orders'];
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   PAID: 'PREPARING',
   PREPARING: 'READY',
@@ -36,7 +37,13 @@ export default function VendorDashboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [segment, setSegment] = useState('Recipes');
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Store the tab index (stable) not the localized label, so language switches
+  // don't break the active-segment comparison.
+  const [segIndex, setSegIndex] = useState(0);
+  const SEGMENTS = [t('dashboard.recipes'), t('dashboard.listings'), t('dashboard.orders')];
 
   const vendor = useQuery({
     queryKey: ['vendor-me'],
@@ -67,14 +74,14 @@ export default function VendorDashboard() {
     mutationFn: ({ id, status }: { id: number; status: OrderStatus }) =>
       api.put<Order>(`/vendor/orders/${id}/status`, { status }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vendor-orders'] }),
-    onError: () => Alert.alert('Update failed', 'Could not update the order status.'),
+    onError: () => Alert.alert(t('dashboard.updateFailed'), t('dashboard.updateStatusError')),
   });
 
   const v = vendor.data;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 6 }}>
-      <ScreenHeader title="Vendor dashboard" />
+      <ScreenHeader title={t('dashboard.vendorDashboard')} />
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 80 }}
         refreshControl={
@@ -103,12 +110,14 @@ export default function VendorDashboard() {
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.statusTitle}>
-                    {v.status === 'REJECTED' ? 'Application rejected' : 'Pending review'}
+                    {v.status === 'REJECTED'
+                      ? t('dashboard.applicationRejected')
+                      : t('dashboard.pendingReview')}
                   </Text>
                   <Text style={styles.statusSub}>
                     {v.status === 'REJECTED'
-                      ? v.rejectionFeedback ?? 'See feedback from our team and re-apply.'
-                      : 'Your vendor profile is being reviewed. You can prepare content meanwhile.'}
+                      ? v.rejectionFeedback ?? t('dashboard.rejectedFeedbackFallback')
+                      : t('dashboard.pendingReviewSub')}
                   </Text>
                 </View>
               </View>
@@ -126,13 +135,13 @@ export default function VendorDashboard() {
 
             <View style={styles.ctaRow}>
               <PrimaryButton
-                title="Upload recipe"
+                title={t('dashboard.uploadRecipe')}
                 small
                 onPress={() => router.push('/dashboard/recipe-form')}
                 style={{ flex: 1 }}
               />
               <PrimaryButton
-                title="Add listing"
+                title={t('dashboard.addListing')}
                 small
                 variant="outline"
                 onPress={() => router.push('/dashboard/listing-form')}
@@ -142,17 +151,17 @@ export default function VendorDashboard() {
 
             <SegmentChips
               segments={SEGMENTS}
-              value={segment}
-              onChange={setSegment}
+              value={SEGMENTS[segIndex]}
+              onChange={(val) => setSegIndex(Math.max(0, SEGMENTS.indexOf(val)))}
               style={{ marginTop: 18, marginBottom: 16 }}
             />
 
-            {segment === 'Recipes' ? (
+            {segIndex === 0 ? (
               myRecipes.length === 0 ? (
                 <EmptyState
                   image={1}
-                  message="No published recipes yet. Newly uploaded recipes appear once approved."
-                  actionLabel="Upload a recipe"
+                  message={t('dashboard.noRecipesYet')}
+                  actionLabel={t('dashboard.uploadARecipe')}
                   onAction={() => router.push('/dashboard/recipe-form')}
                 />
               ) : (
@@ -169,7 +178,7 @@ export default function VendorDashboard() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.rowTitle}>{recipe.title}</Text>
                           <Text style={styles.rowSub}>
-                            {recipe.cuisine} · {recipe.calories} kcal · {recipe.reviewCount} reviews
+                            {recipe.cuisine} · {recipe.calories} kcal · {recipe.reviewCount} {t('dashboard.reviews')}
                           </Text>
                         </View>
                         <StatusPill status={recipe.status} />
@@ -178,12 +187,12 @@ export default function VendorDashboard() {
                   ))}
                 </View>
               )
-            ) : segment === 'Listings' ? (
+            ) : segIndex === 1 ? (
               (listings.data ?? []).length === 0 ? (
                 <EmptyState
                   image={2}
-                  message="No listings yet. Add meals or ingredients to start selling."
-                  actionLabel="Add a listing"
+                  message={t('dashboard.noListingsYet')}
+                  actionLabel={t('dashboard.addAListing')}
                   onAction={() => router.push('/dashboard/listing-form')}
                 />
               ) : (
@@ -196,7 +205,9 @@ export default function VendorDashboard() {
                           <Text style={styles.rowTitle}>{listing.title}</Text>
                           <Text style={styles.rowSub}>
                             {formatMoney(listing.amountMinor, listing.currency)} ·{' '}
-                            {listing.available ? `${listing.stockQty} in stock` : 'unavailable'}
+                            {listing.available
+                              ? `${listing.stockQty} ${t('dashboard.inStock')}`
+                              : t('dashboard.unavailable')}
                           </Text>
                         </View>
                         <StatusPill status={listing.status} />
@@ -206,7 +217,7 @@ export default function VendorDashboard() {
                 </View>
               )
             ) : (orders.data ?? []).length === 0 ? (
-              <EmptyState image={3} message="No orders yet — they will land here the moment customers check out." />
+              <EmptyState image={3} message={t('dashboard.noOrdersYet')} />
             ) : (
               <View style={{ gap: 12 }}>
                 {(orders.data ?? []).map((order, i) => {
@@ -227,7 +238,7 @@ export default function VendorDashboard() {
                           <StatusPill status={order.status} />
                           {next ? (
                             <PrimaryButton
-                              title={`Mark ${next.toLowerCase()}`}
+                              title={`${t('dashboard.mark')} ${next.toLowerCase()}`}
                               small
                               loading={updateStatus.isPending}
                               onPress={() => updateStatus.mutate({ id: order.id, status: next })}
@@ -242,7 +253,7 @@ export default function VendorDashboard() {
             )}
           </>
         ) : (
-          <EmptyState image={1} message="Could not load your vendor profile." />
+          <EmptyState image={1} message={t('dashboard.couldNotLoadVendor')} />
         )}
       </ScrollView>
     </View>
@@ -250,6 +261,7 @@ export default function VendorDashboard() {
 }
 
 function StatusPill({ status }: { status: string }) {
+  const { colors } = useTheme();
   const map: Record<string, { bg: string; fg: string }> = {
     APPROVED: { bg: '#E7F8EF', fg: colors.success },
     PENDING: { bg: colors.accentLight, fg: colors.accentDark },
@@ -274,49 +286,50 @@ const pillStyles = StyleSheet.create({
   text: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
 });
 
-const styles = StyleSheet.create({
-  statusBanner: {
-    flexDirection: 'row',
-    gap: 12,
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  pending: { backgroundColor: colors.accentLight },
-  rejected: { backgroundColor: '#FDECEC' },
-  statusTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  statusSub: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2, lineHeight: 17 },
-  vendorHead: { marginBottom: 14 },
-  vendorName: { fontSize: 20, fontWeight: '800', color: colors.ink },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  ratingText: { fontSize: 12.5, color: colors.inkSoft },
-  ctaRow: { flexDirection: 'row', gap: 10 },
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 10,
-    ...shadow,
-  },
-  rowImg: { width: 54, height: 54, borderRadius: 14, backgroundColor: colors.surfaceAlt },
-  rowTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
-  rowSub: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
-  orderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 14,
-    gap: 8,
-    ...shadow,
-  },
-  orderTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  orderTotal: { fontSize: 14, fontWeight: '800', color: colors.ink },
-  orderBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    statusBanner: {
+      flexDirection: 'row',
+      gap: 12,
+      borderRadius: 20,
+      padding: 16,
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+    pending: { backgroundColor: colors.accentLight },
+    rejected: { backgroundColor: '#FDECEC' },
+    statusTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
+    statusSub: { fontSize: 12.5, color: colors.inkSoft, marginTop: 2, lineHeight: 17 },
+    vendorHead: { marginBottom: 14 },
+    vendorName: { fontSize: 20, fontWeight: '800', color: colors.ink },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    ratingText: { fontSize: 12.5, color: colors.inkSoft },
+    ctaRow: { flexDirection: 'row', gap: 10 },
+    rowCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 10,
+      ...shadow,
+    },
+    rowImg: { width: 54, height: 54, borderRadius: 14, backgroundColor: colors.surfaceAlt },
+    rowTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
+    rowSub: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+    orderCard: {
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 14,
+      gap: 8,
+      ...shadow,
+    },
+    orderTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    orderTotal: { fontSize: 14, fontWeight: '800', color: colors.ink },
+    orderBottom: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+    },
+  });

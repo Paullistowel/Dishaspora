@@ -32,14 +32,21 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}
 SPRING_DATASOURCE_USERNAME=${{Postgres.PGUSER}}
 SPRING_DATASOURCE_PASSWORD=${{Postgres.PGPASSWORD}}
 JWT_SECRET=<64+ random chars — e.g. `openssl rand -hex 48`>
-ANTHROPIC_API_KEY=<sk-ant-...>
+# --- AI (Snap & Cook + AI Chef) — REQUIRED for those features ---
+AI_PROVIDER=openai
+OPENAI_API_KEY=<sk-...>            # from https://platform.openai.com/api-keys
+# (or use Anthropic instead: AI_PROVIDER=anthropic + ANTHROPIC_API_KEY=<sk-ant-...>)
 PAYSTACK_SECRET_KEY=<sk_test_... or sk_live_...>
 PAYSTACK_PUBLIC_KEY=<pk_test_... or pk_live_...>
 PAYSTACK_ALLOW_MOCK=false
 APP_BASE_URL=https://<your-app>.up.railway.app
+# --- Security (recommended in production) ---
+CORS_ALLOWED_ORIGINS=https://<your-web-or-admin-origin>   # comma-separated; omit = "*"
 ```
 
 The `${{Postgres.*}}` values are Railway's own variable references — it fills them in.
+Access tokens are short-lived (30 min) and auto-refreshed; no extra config needed, but
+you can tune `JWT_EXPIRATION_MS` / `JWT_REFRESH_EXPIRATION_MS` if desired.
 
 ### Real email (verification & password-reset links)
 

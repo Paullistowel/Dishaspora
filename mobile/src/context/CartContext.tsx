@@ -17,26 +17,35 @@ export interface CartItem {
   qty: number;
 }
 
+/**
+ * A cart can hold items from several vendors at once (meals from one kitchen,
+ * ingredients from a grocer, etc.). Because the backend creates one order +
+ * one payment per vendor, we expose the cart already grouped by vendor so the
+ * cart/checkout screens can let the user pay each vendor in turn.
+ */
+export interface VendorGroup {
+  vendorId: number;
+  vendorName: string;
+  currency: Currency;
+  items: CartItem[];
+  subtotalMinor: number;
+  count: number;
+}
+
 interface CartContextValue {
   items: CartItem[];
-  /** id + name of the single vendor currently in the cart (one vendor per checkout). */
-  vendorId: number | null;
-  vendorName: string | null;
-  currency: Currency | null;
+  /** Items grouped by vendor, in first-added order. One order/payment per group. */
+  groups: VendorGroup[];
   count: number;
   subtotalMinor: number;
-  /**
-   * Add a listing. Returns 'ok' or 'different-vendor' when the cart already
-   * holds items from another vendor (caller should confirm & call replaceWith).
-   */
-  add: (listing: Listing, qty?: number) => 'ok' | 'different-vendor';
-  /** Clears the cart and adds this listing (used after a different-vendor confirm). */
-  replaceWith: (listing: Listing, qty?: number) => void;
-  /** Adds several listings at once (One-Click Basket). Same vendor rule applies. */
-  addAll: (rows: { listing: Listing; qty: number }[]) => 'ok' | 'different-vendor';
-  replaceAllWith: (rows: { listing: Listing; qty: number }[]) => void;
+  /** Add a listing (merges quantity if it's already in the cart). */
+  add: (listing: Listing, qty?: number) => void;
+  /** Add several listings at once (One-Click Basket / ingredient selection). */
+  addAll: (rows: { listing: Listing; qty: number }[]) => void;
   setQty: (listingId: number, qty: number) => void;
   remove: (listingId: number) => void;
+  /** Remove every item from one vendor — used after that vendor's order is paid. */
+  removeVendor: (vendorId: number) => void;
   clear: () => void;
 }
 
@@ -69,10 +78,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(CART_KEY, JSON.stringify(items)).catch(() => {});
   }, [items]);
 
-  const vendorId = items.length > 0 ? items[0].listing.vendorId : null;
-  const vendorName = items.length > 0 ? items[0].listing.vendorName : null;
-  const currency = items.length > 0 ? items[0].listing.currency : null;
-
   const mergeIn = useCallback(
     (prev: CartItem[], rows: { listing: Listing; qty: number }[]): CartItem[] => {
       const next = [...prev];
@@ -87,34 +92,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   const add = useCallback(
-    (listing: Listing, qty = 1): 'ok' | 'different-vendor' => {
-      if (vendorId !== null && listing.vendorId !== vendorId) return 'different-vendor';
-      setItems((prev) => mergeIn(prev, [{ listing, qty }]));
-      return 'ok';
-    },
-    [vendorId, mergeIn]
-  );
-
-  const replaceWith = useCallback(
-    (listing: Listing, qty = 1) => setItems([{ listing, qty }]),
-    []
+    (listing: Listing, qty = 1) => setItems((prev) => mergeIn(prev, [{ listing, qty }])),
+    [mergeIn]
   );
 
   const addAll = useCallback(
-    (rows: { listing: Listing; qty: number }[]): 'ok' | 'different-vendor' => {
-      if (rows.length === 0) return 'ok';
-      const rowVendor = rows[0].listing.vendorId;
-      if (vendorId !== null && rowVendor !== vendorId) return 'different-vendor';
+    (rows: { listing: Listing; qty: number }[]) => {
+      if (rows.length === 0) return;
       setItems((prev) => mergeIn(prev, rows));
-      return 'ok';
     },
-    [vendorId, mergeIn]
-  );
-
-  const replaceAllWith = useCallback(
-    (rows: { listing: Listing; qty: number }[]) =>
-      setItems(rows.map((r) => ({ listing: r.listing, qty: r.qty }))),
-    []
+    [mergeIn]
   );
 
   const setQty = useCallback((listingId: number, qty: number) => {
@@ -129,31 +116,52 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => prev.filter((it) => it.listing.id !== listingId));
   }, []);
 
+  const removeVendor = useCallback((vendorId: number) => {
+    setItems((prev) => prev.filter((it) => it.listing.vendorId !== vendorId));
+  }, []);
+
   const clear = useCallback(() => setItems([]), []);
 
+  const groups = useMemo<VendorGroup[]>(() => {
+    const map = new Map<number, VendorGroup>();
+    for (const it of items) {
+      const vId = it.listing.vendorId;
+      let g = map.get(vId);
+      if (!g) {
+        g = {
+          vendorId: vId,
+          vendorName: it.listing.vendorName,
+          currency: it.listing.currency,
+          items: [],
+          subtotalMinor: 0,
+          count: 0,
+        };
+        map.set(vId, g);
+      }
+      g.items.push(it);
+      g.subtotalMinor += it.listing.amountMinor * it.qty;
+      g.count += it.qty;
+    }
+    return [...map.values()];
+  }, [items]);
+
   const count = items.reduce((n, it) => n + it.qty, 0);
-  const subtotalMinor = items.reduce(
-    (n, it) => n + it.qty * it.listing.amountMinor,
-    0
-  );
+  const subtotalMinor = items.reduce((n, it) => n + it.qty * it.listing.amountMinor, 0);
 
   const value = useMemo(
     () => ({
       items,
-      vendorId,
-      vendorName,
-      currency,
+      groups,
       count,
       subtotalMinor,
       add,
-      replaceWith,
       addAll,
-      replaceAllWith,
       setQty,
       remove,
+      removeVendor,
       clear,
     }),
-    [items, vendorId, vendorName, currency, count, subtotalMinor, add, replaceWith, addAll, replaceAllWith, setQty, remove, clear]
+    [items, groups, count, subtotalMinor, add, addAll, setQty, remove, removeVendor, clear]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

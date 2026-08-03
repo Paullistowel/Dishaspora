@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -15,6 +15,8 @@ import ScreenHeader from '@/components/ScreenHeader';
 import EmptyState from '@/components/EmptyState';
 import { LoadingView, ErrorView } from '@/components/StatusViews';
 import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import {
   useDeleteNotification,
   useMarkAllNotificationsRead,
@@ -22,19 +24,21 @@ import {
   useNotifications,
 } from '@/hooks/useNotifications';
 import { timeAgo } from '@/date';
-import { colors, radius, spacing, type } from '@/theme';
+import { radius, spacing, type, type ThemeColors } from '@/theme';
 import type { AppNotification, NotificationType, Page } from '@/types';
 
 const LIST_KEY = ['notifications'] as const;
 
-const ICONS: Record<NotificationType, { name: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> = {
+const iconConfig = (
+  colors: ThemeColors
+): Record<NotificationType, { name: keyof typeof Ionicons.glyphMap; tint: string; bg: string }> => ({
   ORDER_UPDATE: { name: 'bag-check-outline', tint: colors.blueDark, bg: colors.blueLight },
   MEAL_UPDATE: { name: 'restaurant-outline', tint: colors.brandDark, bg: colors.brandLight },
   RECOMMENDATION: { name: 'sparkles-outline', tint: colors.accentDark, bg: colors.accentLight },
-  SECURITY: { name: 'shield-checkmark-outline', tint: colors.danger, bg: '#FDECEC' },
+  SECURITY: { name: 'shield-checkmark-outline', tint: colors.danger, bg: colors.accentLight },
   ANNOUNCEMENT: { name: 'megaphone-outline', tint: colors.brandDark, bg: colors.brandLight },
   PROMOTION: { name: 'pricetag-outline', tint: colors.accentDark, bg: colors.accentLight },
-};
+});
 
 const NotificationRow = React.memo(function NotificationRow({
   item,
@@ -45,14 +49,18 @@ const NotificationRow = React.memo(function NotificationRow({
   onPress: (n: AppNotification) => void;
   onDelete: (id: number) => void;
 }) {
-  const cfg = ICONS[item.type] ?? ICONS.ANNOUNCEMENT;
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const icons = useMemo(() => iconConfig(colors), [colors]);
+  const cfg = icons[item.type] ?? icons.ANNOUNCEMENT;
   return (
     <TouchableOpacity
       style={[styles.row, !item.read && styles.rowUnread]}
       activeOpacity={0.7}
       onPress={() => onPress(item)}
       accessibilityRole="button"
-      accessibilityLabel={`${item.title}. ${item.body}. ${item.read ? 'Read' : 'Unread'}.`}
+      accessibilityLabel={`${item.title}. ${item.body}. ${item.read ? t('support.read') : t('support.unread')}.`}
     >
       <View style={[styles.icon, { backgroundColor: cfg.bg }]}>
         <Ionicons name={cfg.name} size={18} color={cfg.tint} />
@@ -73,7 +81,7 @@ const NotificationRow = React.memo(function NotificationRow({
         hitSlop={10}
         onPress={() => onDelete(item.id)}
         accessibilityRole="button"
-        accessibilityLabel="Delete notification"
+        accessibilityLabel={t('support.deleteNotification')}
         style={styles.delete}
       >
         <Ionicons name="close" size={16} color={colors.inkFaint} />
@@ -86,6 +94,9 @@ export default function Notifications() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch, isRefetching } = useNotifications();
   const markRead = useMarkNotificationRead();
@@ -114,9 +125,9 @@ export default function Notifications() {
         remove.mutate(id);
       }, 4500);
       pendingDeletes.current[id] = timer;
-      toast.show('Notification deleted', 'info', {
+      toast.show(t('support.notificationDeleted'), 'info', {
         action: {
-          label: 'Undo',
+          label: t('support.undo'),
           onPress: () => {
             clearTimeout(pendingDeletes.current[id]);
             delete pendingDeletes.current[id];
@@ -126,7 +137,7 @@ export default function Notifications() {
         },
       });
     },
-    [queryClient, remove, toast]
+    [queryClient, remove, toast, t]
   );
 
   const hasUnread = (data ?? []).some((n) => !n.read);
@@ -134,20 +145,20 @@ export default function Notifications() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + spacing.sm }]}>
       <ScreenHeader
-        title="Notifications"
+        title={t('support.notifications')}
         right={
           hasUnread ? (
             <TouchableOpacity
               onPress={() =>
                 markAll.mutate(undefined, {
-                  onSuccess: () => toast.success('All caught up'),
+                  onSuccess: () => toast.success(t('support.allCaughtUp')),
                 })
               }
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="Mark all as read"
+              accessibilityLabel={t('support.markAllAsRead')}
             >
-              <Text style={styles.markAll}>Mark all</Text>
+              <Text style={styles.markAll}>{t('support.markAll')}</Text>
             </TouchableOpacity>
           ) : undefined
         }
@@ -174,7 +185,7 @@ export default function Notifications() {
           }
           ListEmptyComponent={
             <EmptyState
-              message="You're all caught up — no notifications yet."
+              message={t('support.notificationsEmpty')}
               image={2}
             />
           }
@@ -184,30 +195,31 @@ export default function Notifications() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  emptyContainer: { flexGrow: 1, justifyContent: 'center' },
-  markAll: { color: colors.brandDark, fontSize: type.size.sm, fontWeight: type.weight.bold },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  rowUnread: { backgroundColor: colors.brandLight },
-  icon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  title: { flex: 1, fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink },
-  time: { fontSize: type.size.xs, color: colors.inkFaint, fontWeight: type.weight.medium },
-  body: { fontSize: type.size.sm, color: colors.inkSoft, lineHeight: type.line.sm, marginTop: 2 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
-  delete: { padding: spacing.xs },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    emptyContainer: { flexGrow: 1, justifyContent: 'center' },
+    markAll: { color: colors.brandDark, fontSize: type.size.sm, fontWeight: type.weight.bold },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    rowUnread: { backgroundColor: colors.brandLight },
+    icon: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    title: { flex: 1, fontSize: type.size.md, fontWeight: type.weight.bold, color: colors.ink },
+    time: { fontSize: type.size.xs, color: colors.inkFaint, fontWeight: type.weight.medium },
+    body: { fontSize: type.size.sm, color: colors.inkSoft, lineHeight: type.line.sm, marginTop: 2 },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
+    delete: { padding: spacing.xs },
+  });

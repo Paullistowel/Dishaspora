@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -21,34 +21,39 @@ import PrimaryButton from '@/components/PrimaryButton';
 import RatingStars from '@/components/RatingStars';
 import { api, ApiError } from '@/api';
 import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { useMyFeedback, useSubmitFeedback } from '@/hooks/useFeedback';
 import { deviceSummary } from '@/device';
 import { timeAgo } from '@/date';
-import { colors, radius, spacing, type } from '@/theme';
+import { radius, spacing, type, type ThemeColors } from '@/theme';
 import type { FeedbackStatus, FeedbackType } from '@/types';
-
-const TYPES: { key: FeedbackType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'GENERAL', label: 'General', icon: 'chatbubble-ellipses-outline' },
-  { key: 'BUG', label: 'Report bug', icon: 'bug-outline' },
-  { key: 'FEATURE', label: 'Idea', icon: 'bulb-outline' },
-  { key: 'RATING', label: 'Rate app', icon: 'star-outline' },
-];
-
-const STATUS_STYLE: Record<FeedbackStatus, { label: string; tint: string; bg: string }> = {
-  NEW: { label: 'Submitted', tint: colors.blueDark, bg: colors.blueLight },
-  IN_REVIEW: { label: 'In review', tint: colors.accentDark, bg: colors.accentLight },
-  RESOLVED: { label: 'Resolved', tint: colors.success, bg: '#E7F7EF' },
-};
 
 export default function FeedbackScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { colors } = useTheme();
+  const { t } = useI18n();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ type?: string }>();
   const initialType = (['GENERAL', 'BUG', 'FEATURE', 'RATING'] as FeedbackType[]).includes(
     params.type as FeedbackType
   )
     ? (params.type as FeedbackType)
     : 'GENERAL';
+
+  const TYPES: { key: FeedbackType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { key: 'GENERAL', label: t('support.feedbackTypeGeneral'), icon: 'chatbubble-ellipses-outline' },
+    { key: 'BUG', label: t('support.feedbackTypeBug'), icon: 'bug-outline' },
+    { key: 'FEATURE', label: t('support.feedbackTypeIdea'), icon: 'bulb-outline' },
+    { key: 'RATING', label: t('support.feedbackTypeRate'), icon: 'star-outline' },
+  ];
+
+  const STATUS_STYLE: Record<FeedbackStatus, { label: string; tint: string; bg: string }> = {
+    NEW: { label: t('support.statusSubmitted'), tint: colors.blueDark, bg: colors.blueLight },
+    IN_REVIEW: { label: t('support.statusInReview'), tint: colors.accentDark, bg: colors.accentLight },
+    RESOLVED: { label: t('support.statusResolved'), tint: colors.success, bg: colors.brandLight },
+  };
 
   const [ftype, setFtype] = useState<FeedbackType>(initialType);
   const [message, setMessage] = useState('');
@@ -76,7 +81,7 @@ export default function FeedbackScreen() {
       const { url } = await api.upload({ uri: shrunk.uri, name: 'feedback.jpg', mimeType: 'image/jpeg' });
       setScreenshotUrl(url);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Could not attach the screenshot.');
+      toast.error(e instanceof ApiError ? e.message : t('support.screenshotAttachError'));
     } finally {
       setUploading(false);
     }
@@ -84,11 +89,11 @@ export default function FeedbackScreen() {
 
   const onSubmit = () => {
     if (!message.trim()) {
-      setError('Please tell us a little more.');
+      setError(t('support.errorTellMore'));
       return;
     }
     if (ftype === 'RATING' && rating === 0) {
-      setError('Tap a star to rate your experience.');
+      setError(t('support.errorTapStar'));
       return;
     }
     setError(null);
@@ -101,13 +106,13 @@ export default function FeedbackScreen() {
       },
       {
         onSuccess: () => {
-          toast.success('Thank you — your feedback was sent!');
+          toast.success(t('support.feedbackSent'));
           setMessage('');
           setRating(0);
           setScreenshotUrl(null);
         },
         onError: (e) =>
-          toast.error(e instanceof ApiError ? e.message : 'Could not send feedback. Try again.'),
+          toast.error(e instanceof ApiError ? e.message : t('support.feedbackSendError')),
       }
     );
   };
@@ -118,35 +123,33 @@ export default function FeedbackScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={{ paddingTop: insets.top + spacing.sm }}>
-        <ScreenHeader title="Feedback" />
+        <ScreenHeader title={t('support.feedback')} />
       </View>
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xxxl }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.intro}>
-          We read every message. Tell us what's working, what's broken, or what you'd love to see.
-        </Text>
+        <Text style={styles.intro}>{t('support.feedbackIntro')}</Text>
 
         {/* Type selector */}
         <View style={styles.typeRow}>
-          {TYPES.map((t) => {
-            const active = t.key === ftype;
+          {TYPES.map((item) => {
+            const active = item.key === ftype;
             return (
               <Pressable
-                key={t.key}
-                onPress={() => setFtype(t.key)}
+                key={item.key}
+                onPress={() => setFtype(item.key)}
                 style={[styles.typeChip, active && styles.typeChipActive]}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={t.label}
+                accessibilityLabel={item.label}
               >
                 <Ionicons
-                  name={t.icon}
+                  name={item.icon}
                   size={18}
                   color={active ? '#FFFFFF' : colors.inkSoft}
                 />
-                <Text style={[styles.typeLabel, active && { color: '#FFFFFF' }]}>{t.label}</Text>
+                <Text style={[styles.typeLabel, active && { color: '#FFFFFF' }]}>{item.label}</Text>
               </Pressable>
             );
           })}
@@ -154,23 +157,27 @@ export default function FeedbackScreen() {
 
         {ftype === 'RATING' ? (
           <View style={styles.rateBox}>
-            <Text style={styles.label}>How would you rate Dishaspora?</Text>
+            <Text style={styles.label}>{t('support.rateQuestion')}</Text>
             <RatingStars rating={rating} size={26} onRate={setRating} />
           </View>
         ) : null}
 
         <Text style={styles.label}>
-          {ftype === 'BUG' ? 'What went wrong?' : ftype === 'FEATURE' ? 'Your idea' : 'Your message'}
+          {ftype === 'BUG'
+            ? t('support.labelWhatWentWrong')
+            : ftype === 'FEATURE'
+            ? t('support.labelYourIdea')
+            : t('support.labelYourMessage')}
         </Text>
         <Input
           placeholder={
             ftype === 'BUG'
-              ? 'Describe the bug and the steps to reproduce it…'
-              : 'Type your message…'
+              ? t('support.placeholderBug')
+              : t('support.placeholderMessage')
           }
           value={message}
-          onChangeText={(t) => {
-            setMessage(t);
+          onChangeText={(val) => {
+            setMessage(val);
             if (error) setError(null);
           }}
           multiline
@@ -186,7 +193,7 @@ export default function FeedbackScreen() {
               onPress={() => setScreenshotUrl(null)}
               style={styles.shotRemove}
               accessibilityRole="button"
-              accessibilityLabel="Remove screenshot"
+              accessibilityLabel={t('support.removeScreenshot')}
             >
               <Ionicons name="close" size={16} color="#FFFFFF" />
             </Pressable>
@@ -196,7 +203,7 @@ export default function FeedbackScreen() {
             onPress={pickScreenshot}
             style={styles.attach}
             accessibilityRole="button"
-            accessibilityLabel="Attach a screenshot"
+            accessibilityLabel={t('support.attachScreenshot')}
           >
             <Ionicons
               name={uploading ? 'hourglass-outline' : 'image-outline'}
@@ -204,18 +211,18 @@ export default function FeedbackScreen() {
               color={colors.brandDark}
             />
             <Text style={styles.attachText}>
-              {uploading ? 'Uploading…' : 'Attach a screenshot (optional)'}
+              {uploading ? t('support.uploading') : t('support.attachScreenshotOptional')}
             </Text>
           </Pressable>
         )}
 
         <Text style={styles.deviceNote}>
           <Ionicons name="information-circle-outline" size={12} color={colors.inkFaint} />{' '}
-          We'll include your device info ({deviceSummary()}) to help us investigate.
+          {t('support.deviceInfoPrefix')} ({deviceSummary()}) {t('support.deviceInfoSuffix')}
         </Text>
 
         <PrimaryButton
-          title="Send feedback"
+          title={t('support.sendFeedback')}
           onPress={onSubmit}
           loading={submit.isPending || uploading}
           style={{ marginTop: spacing.lg }}
@@ -224,7 +231,7 @@ export default function FeedbackScreen() {
         {/* Past submissions with status */}
         {(mine.data?.length ?? 0) > 0 ? (
           <View style={styles.history}>
-            <Text style={styles.historyTitle}>Your submissions</Text>
+            <Text style={styles.historyTitle}>{t('support.yourSubmissions')}</Text>
             {mine.data!.map((f) => {
               const s = STATUS_STYLE[f.status];
               return (
@@ -248,67 +255,68 @@ export default function FeedbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  intro: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: type.line.md, marginBottom: spacing.lg },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
-  typeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-  },
-  typeChipActive: { backgroundColor: colors.brandDark },
-  typeLabel: { fontSize: type.size.sm, fontWeight: type.weight.semibold, color: colors.inkSoft },
-  rateBox: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg },
-  label: {
-    fontSize: type.size.md,
-    fontWeight: type.weight.semibold,
-    color: colors.ink,
-    marginBottom: spacing.sm,
-  },
-  attach: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.brandLight,
-  },
-  attachText: { fontSize: type.size.sm, fontWeight: type.weight.semibold, color: colors.brandDark },
-  shotPreview: { marginTop: spacing.md, alignSelf: 'flex-start' },
-  shotImg: { width: 120, height: 120, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
-  shotRemove: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deviceNote: { fontSize: type.size.xs, color: colors.inkFaint, marginTop: spacing.md, lineHeight: type.line.xs },
-  history: { marginTop: spacing.xxxl, gap: spacing.md },
-  historyTitle: { fontSize: type.size.lg, fontWeight: type.weight.bold, color: colors.ink },
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  historyMsg: { fontSize: type.size.sm, color: colors.ink, lineHeight: type.line.sm },
-  historyMeta: { fontSize: type.size.xs, color: colors.inkFaint, marginTop: 2 },
-  statusPill: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
-  statusText: { fontSize: type.size.xs, fontWeight: type.weight.bold },
-});
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    intro: { fontSize: type.size.md, color: colors.inkSoft, lineHeight: type.line.md, marginBottom: spacing.lg },
+    typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
+    typeChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.pill,
+      backgroundColor: colors.surface,
+    },
+    typeChipActive: { backgroundColor: colors.brandDark },
+    typeLabel: { fontSize: type.size.sm, fontWeight: type.weight.semibold, color: colors.inkSoft },
+    rateBox: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg },
+    label: {
+      fontSize: type.size.md,
+      fontWeight: type.weight.semibold,
+      color: colors.ink,
+      marginBottom: spacing.sm,
+    },
+    attach: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderStyle: 'dashed',
+      borderColor: colors.brandLight,
+    },
+    attachText: { fontSize: type.size.sm, fontWeight: type.weight.semibold, color: colors.brandDark },
+    shotPreview: { marginTop: spacing.md, alignSelf: 'flex-start' },
+    shotImg: { width: 120, height: 120, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+    shotRemove: {
+      position: 'absolute',
+      top: -6,
+      right: -6,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deviceNote: { fontSize: type.size.xs, color: colors.inkFaint, marginTop: spacing.md, lineHeight: type.line.xs },
+    history: { marginTop: spacing.xxxl, gap: spacing.md },
+    historyTitle: { fontSize: type.size.lg, fontWeight: type.weight.bold, color: colors.ink },
+    historyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    historyMsg: { fontSize: type.size.sm, color: colors.ink, lineHeight: type.line.sm },
+    historyMeta: { fontSize: type.size.xs, color: colors.inkFaint, marginTop: 2 },
+    statusPill: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
+    statusText: { fontSize: type.size.xs, fontWeight: type.weight.bold },
+  });

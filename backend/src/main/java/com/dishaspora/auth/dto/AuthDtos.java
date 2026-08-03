@@ -31,6 +31,13 @@ public final class AuthDtos {
     public record UpdateMeRequest(String name, String avatarUrl,
             @Pattern(regexp = "GH|NG", message = "must be GH or NG") String country) {}
 
+    /** Dietary preferences for AI personalization. Comma-separated allergies /
+     * dietary tags; fitnessGoal is a single value. All optional. */
+    public record UpdatePreferencesRequest(
+            @jakarta.validation.constraints.Size(max = 500) String allergies,
+            @jakarta.validation.constraints.Size(max = 500) String dietaryPreferences,
+            @jakarta.validation.constraints.Size(max = 40) String fitnessGoal) {}
+
     public record ForgotPasswordRequest(@NotBlank @Email String email) {}
 
     public record ResetPasswordRequest(

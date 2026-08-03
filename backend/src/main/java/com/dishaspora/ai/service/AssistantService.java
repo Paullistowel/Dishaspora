@@ -61,6 +61,58 @@ public class AssistantService {
         return new SmartSearchResponse(filters.asMap(), recipeMapper.toDtos(matches, user));
     }
 
+    /**
+     * Personalized meal suggestions grouped into breakfast/lunch/dinner. Deterministic
+     * (no AI key or premium required, so it always works): filters the approved catalog
+     * to the user's country, EXCLUDES anything containing a flagged allergen, and ranks
+     * by the user's fitness goal (lose weight → lower calories; build muscle → higher
+     * protein-ish via calories proxy; maintain → closest to calorie goal / 3).
+     */
+    public com.dishaspora.ai.dto.AiDtos.MealSuggestions recommendMeals(User user) {
+        List<String> allergies = user.allergyList();
+        List<Recipe> approved = recipeRepository.findByStatus(ApprovalStatus.APPROVED).stream()
+                .filter(r -> !containsAllergen(r, allergies))
+                .toList();
+
+        List<RecipeDto> breakfast = pickForSlot(approved, com.dishaspora.common.enums.Enums.MealType.BREAKFAST, user);
+        List<RecipeDto> lunch = pickForSlot(approved, com.dishaspora.common.enums.Enums.MealType.LUNCH, user);
+        List<RecipeDto> dinner = pickForSlot(approved, com.dishaspora.common.enums.Enums.MealType.DINNER, user);
+
+        String goal = user.getFitnessGoal().trim();
+        String note = goal.isEmpty()
+                ? "Personalized picks from our kitchen for you today."
+                : "Tuned to your goal to " + goal.replace('_', ' ') + ", avoiding your flagged allergens.";
+        return new com.dishaspora.ai.dto.AiDtos.MealSuggestions(note, breakfast, lunch, dinner);
+    }
+
+    private List<RecipeDto> pickForSlot(List<Recipe> pool,
+            com.dishaspora.common.enums.Enums.MealType slot, User user) {
+        String goal = user.getFitnessGoal().trim();
+        int calTarget = Math.max(1, user.getCalorieGoal()) / 3;
+        java.util.Comparator<Recipe> order = switch (goal) {
+            case "lose_weight" -> java.util.Comparator.comparingInt(Recipe::getCalories);
+            case "build_muscle" -> java.util.Comparator.comparingInt(Recipe::getCalories).reversed();
+            default -> java.util.Comparator.comparingInt(r -> Math.abs(r.getCalories() - calTarget));
+        };
+        return pool.stream()
+                .filter(r -> r.getMealType() == slot)
+                .sorted(order)
+                .limit(4)
+                .map(r -> recipeMapper.toDto(r, user))
+                .toList();
+    }
+
+    private boolean containsAllergen(Recipe recipe, List<String> allergies) {
+        if (allergies.isEmpty() || recipe.getIngredients() == null) return false;
+        for (Ingredient ing : recipe.getIngredients()) {
+            String name = ing.getName() == null ? "" : ing.getName().toLowerCase();
+            for (String a : allergies) {
+                if (!a.isEmpty() && name.contains(a)) return true;
+            }
+        }
+        return false;
+    }
+
     private AssistantReply claudeChat(AssistantChatRequest request, User user) {
         String systemPrompt = """
                 You are "Ask Dishaspora", the friendly cooking assistant of the Dishaspora platform \
@@ -69,6 +121,11 @@ public class AssistantService {
                 recipes that are not in the catalog. If nothing in the catalog fits, say so politely.
                 Keep answers short (2-4 sentences), warm and friendly. Never give medical, dietary-\
                 clinical or health advice; if asked, suggest talking to a professional.
+
+                USER PROFILE (personalise your suggestions to this; NEVER recommend a recipe that \
+                contains one of their allergens, and respect their dietary preferences):
+                %s
+
                 The catalog format is: id|title|cuisine|category|calories|totalMinutes|main ingredients.
 
                 RECIPE CATALOG:
@@ -78,7 +135,7 @@ public class AssistantService {
                 RECIPE_IDS: 1,5,9
                 listing the ids (comma-separated, max 5) of the catalog recipes relevant to your \
                 answer. If none are relevant, end with "RECIPE_IDS:" and nothing after the colon.
-                """.formatted(buildCatalog());
+                """.formatted(buildUserContext(user), buildCatalog());
 
         List<AiClient.Turn> history = request.history() == null ? List.of()
                 : request.history().stream()
@@ -137,6 +194,20 @@ public class AssistantService {
             reply = sb.toString();
         }
         return new AssistantReply(reply, recipeMapper.toDtos(matches, user));
+    }
+
+    /** One-line description of the user's dietary context for prompt personalisation. */
+    private String buildUserContext(User user) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Country: ").append("NG".equals(user.getCountry()) ? "Nigeria" : "Ghana").append(". ");
+        String allergies = user.getAllergies().trim();
+        sb.append("Allergies: ").append(allergies.isEmpty() ? "none" : allergies).append(". ");
+        String diet = user.getDietaryPreferences().trim();
+        sb.append("Dietary preferences: ").append(diet.isEmpty() ? "none" : diet).append(". ");
+        String goal = user.getFitnessGoal().trim();
+        if (!goal.isEmpty()) sb.append("Fitness goal: ").append(goal.replace('_', ' ')).append(". ");
+        sb.append("Daily calorie goal: ").append(user.getCalorieGoal()).append(" kcal.");
+        return sb.toString();
     }
 
     /** Compact catalog of approved recipes injected into the Claude system prompt. */
