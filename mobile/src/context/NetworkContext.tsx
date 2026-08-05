@@ -23,12 +23,14 @@ const NetworkContext = createContext<NetworkState>({
   isOffline: false,
 });
 
-// Bridge NetInfo → React Query so queries/mutations pause while offline and
-// auto-resume (and retry) when connectivity returns. Registered once at module
-// load, before any provider mounts.
+// Bridge NetInfo → React Query so queries/mutations pause only when there's NO
+// network interface at all. We deliberately do NOT gate on isInternetReachable:
+// on LAN/hotspot/captive-portal setups it's often false even though the backend
+// is perfectly reachable — gating on it made the app "buffer forever" offline.
+// Let the actual request succeed/fail drive the UI instead.
 onlineManager.setEventListener((setOnline) => {
   return NetInfo.addEventListener((state) => {
-    setOnline(!!state.isConnected && state.isInternetReachable !== false);
+    setOnline(state.isConnected !== false);
   });
 });
 
@@ -46,7 +48,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       setState({
         isConnected,
         isInternetReachable,
-        isOffline: !isConnected || isInternetReachable === false,
+        isOffline: !isConnected,
       });
     });
     // Prime with the current value on mount.
@@ -56,7 +58,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       setState({
         isConnected,
         isInternetReachable,
-        isOffline: !isConnected || isInternetReachable === false,
+        isOffline: !isConnected,
       });
     });
     return unsub;

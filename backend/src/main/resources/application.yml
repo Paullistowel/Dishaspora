@@ -20,10 +20,13 @@ spring:
           starttls:
             enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/dishaspora}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
-    driver-class-name: org.postgresql.Driver
+    # Defaults to the embedded H2 file DB so the app boots ANYWHERE with zero
+    # config (e.g. Railway before you attach Postgres). Set SPRING_DATASOURCE_URL
+    # to a real Postgres URL and it uses that instead — the driver is auto-detected
+    # from the URL, so no driver-class-name is needed for either.
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./data/dishaspora;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: update
